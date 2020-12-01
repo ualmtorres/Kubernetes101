@@ -1,0 +1,1068 @@
+////
+NO CAMBIAR!!
+Codificación, idioma, tabla de contenidos, tipo de documento
+////
+:encoding: utf-8
+:lang: es
+:toc: right
+:toc-title: Tabla de contenidos
+:doctype: book
+:linkattrs:
+
+////
+Nombre y título del trabajo
+////
+# Kubernetes 101
+Máster en Tecnologías y Aplicaciones en Ingeniería Informática
+José Joaquín Cañadas y Manuel Torres <jjcanada@ual.es> <mtorres@ual.es>
+
+
+image::images/di.png[]
+
+// NO CAMBIAR!! (Entrar en modo no numerado de apartados)
+:numbered!: 
+
+
+[abstract]
+== Resumen
+////
+COLOCA A CONTINUACION EL RESUMEN
+////
+Kubernetes es un sistema de código abierto para la automatización de despliegues. escalado y administración de aplicaciones basadas en contenedores. En este tutorial se realiza una introducción a su objetos principales y se ilustra su funcionamiento con Minikube y Google Kubernetes Engine.
+
+////
+COLOCA A CONTINUACION LOS OBJETIVOS
+////
+.Objetivos
+* Prensentar los componentes de la arquitectura de Kubernetes.
+* Usar los objetos básicos de Kubernetes (`Namespace`, `Pod`, `Deployment`, `Service`, `ConfigMap`, `Secret` y `Volume`).
+* Utilizar `kubectl` y desplegar configuraciones con archivos YAML.
+* Usar el componente de autoescalado horizontal.
+* Utilizar distintos tipos de volúmenes para el almacenamiento persistente.
+* Configurar Google Kubernetes Engine como plataforma de despliegue.
+
+// Entrar en modo numerado de apartados
+:numbered:
+
+## Introducción
+
+Kubernetes es una plataforma de código abierto para despliegue, escalado y gestión de aplicaciones contenedorizadas. 
+
+[quote,Documentación oficial de Kubernetes (https://kubernetes.io/docs/concepts/overview/what-is-kubernetes/)]
+____
+Kubernetes is a portable, extensible, open-source platform for managing containerized workloads and services, that facilitates both declarative configuration and automation. It has a large, rapidly growing ecosystem. Kubernetes services, support, and tools are widely available.
+
+The name Kubernetes originates from Greek, meaning helmsman or pilot. Google open-sourced the Kubernetes project in 2014. Kubernetes builds upon a decade and a half of experience that Google has with running production workloads at scale, combined with best-of-breed ideas and practices from the community.
+____
+
+Kubernetes ofrece una abstracción en la que permite el despliegue de aplicaciones en un cluster sin pensar en las máquinas que lo soportan.
+
+## Arquitectura de Kubernetes
+
+Un cluster de Kubernetes está formado por dos tipos de unidades (referidos a máquinas, ya sean físicas o virtuales), el nodo _Master_ y los nodos _Worker_ (o siemplemente _Nodos_).
+
+* El *Master* coordina el cluster. Coordina todas las actividades del cluster como organizar (schedule) las aplicaciones, mantener el estado deseado de las aplicaciones, escalado, despliegue de actualizaciones, y demás. También recoge información de los nodos worker y Pods (unidades mínimas de despliegue en Kubernetes. Contienen al menos un contenedor) .
+* Los *Nodos* son _workers_ que ejecutan las aplicaciones. Cada nodo contiene un agente denominado _Kubelet_ que gestiona el nodo y mantiene la comunicación con el Máster. El nodo también tiene herramientas para trabajar con contenedores, como por ejemplo Docker.
+
+[NOTE]
+====
+Un cluster Kubernetes en producción debería tener al menos 3 nodos. En entornos de producción se usan varios nodos máster para que los clusters sean tolerantes a fallos y ofrezcan alta disponibilidad.
+====
+
+image::images/KubernetesCluster.svg[]
+
+Al desplegar una aplicación en Kubernetes el Master inicia los contenedores de la aplicación. El máster organiza los contenedores para que se ejecuten en los nodos (_worker_) del cluster. Los nodos se comunican con el master usando la https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.15/#-strong-api-overview-strong-[API de Kubernetes,window=_blank]. La API es expuesta a través del nodo Master y es posible usarla directamente para intectuar con el cluster.
+
+[NOTE]
+====
+Una aplicación de tratamiento de imágenes y que esté basada en contenedores podría interactuar con la API de Kubernetes solicitando a demanda la creación de pods dedicados a operaciones específicas (p.e. filtrado, aclarado, ...) en respuesta a las acciones de los usuarios. Una vez finalizada la operación, la aplicación volvería a interactuar con la API de Kubernetes para la liberación de los pods creados para la resolución de la tarea.
+====
+
+La figura siguiente ilustra el master de Kubernetes y nodos Kubernetes, así como algunos de los componentes más importantes en su interior.
+
+image::images/KubernetesArchitecture.png[]
+
+* Plugins de red: Permiten la conexión entre pods de nodos diferentes y la integración de soluciones de red diferentes (overlay, L3, ...)
+* `etcd`: una base de datos clave-valor donde Kubernetes guarda todos los datos del cluster.
+
++
+[NOTE]
+====
+https://etcd.io/[etcd,window=_blank], es una base de datos clave-valor fiable y distribuida para los datos más críticos de un un sistema distribuido. Dado que Kubernetes guarda todos los datos del cluster en ella, se deberían mantener copias de seguridad de esta base de datos y disponer de un plan de recuperación ante posibles desastres.
+====
+
+* API server: Componente del Master que expone la API de Kubernetes. Es el front-end del plano de control de Kubernetes.
+* Control Manager: Se encarga de comprobar si el estado deseado coincide con la realidad (p.e. número de réplicas)
+* Scheduler: Componente del master que observa qué pods se han creado nuevos y no tienen nodo asignado, y les selecciona un nodo donde se puedan ejecutar.
+* `kubelet`: Agente que se se ejecuta en cada nodo worker del cluster y que asegura que los nodos están en ejecución y sanos. *`kubelet` no gestiona los pods que no han sido creados por Kubernetes.* 
+* `kube-proxy`: Mantiene las reglas de networking en los nodos para los pods que se ejecutan en él de acuerdo con las especificaciones de los manifiestos.
+* `cAdvisor`: Recoge datos de uso de los contenedores.
+* Plano de control o _Control plane_: Nivel de orquestación de contenedores que expone la API para definir, desplegar y gestionar el ciclo de vida de los contenedores.
+* Plano de datos o _Data Plane_: Nivel que proporciona los recursos, como CPU, memoria, red y almacenamiento, para que los pods se puedan ejecutar y conectar a la red.
+
+[NOTE]
+====
+Los componentes `kube-proxy`, `kube-scheduler`, `kube-controller-manager`, `etcd`, `kubelet`, así como los componentes de red se ejecutan como contenedores en cada uno de los nodos del cluster de Kubernetes. Basta con abrir un terminal en uno de los nodos del cluster y comprobarlo. Si lo hacemos, veremos como en los nodos worker están los contenedores de los componentes de Kubernetes junto con los contenedores de las aplicaciones que se están ejecutando en el nodo.
+====
+
+## Objetos de Kubernetes
+
+Kubernetes ofrece una serie de objetos básicos y una serie de abstracciones de nivel superior llamadas Controladores. 
+
+Los objetos básicos de Kubernetes son:
+
+* Pod. Representa un contenedor (realmente un grupo de contenedores) en ejecución en un cluster.
+* Service. Abstracción para exponer una aplicación.
+* Volume. Ofrece almacenamiento para los contenedores.
+* Namespace. Agrupan recursos y ofrecen una abstracción de cluster virtual sobre un cluster Kubernetes.
+* ConfigMap. Permiten almacenar datos en forma de pares clave-valor. Util para guardar valores de configuración, como variables de entorno.
+* Secret. Se usan para almacenar información sensible, como contraseñas, tokens OAuth y claves ssh.
+
+Los objetos de nivel superior o Controladores se basan en los objetos básicos y ofrecen funcionalidades adicionales sobre los objetos básicos:
+
+* ReplicaSet. Asegura que se estén ejecutando el número de réplicas especificadas para un Pod
+* Deployment. Forma declarativa de definir los Pods y ReplicaSets
+* StatefulSet. Se usa para gestionar aplicaciones con estado.
+* DaemonSet. Asegura que cada nodo Kubernetes tiene una copia en ejecución de un Pod. Util como daemon de almacenamiento, logs o monitorización.
+* Job. Crea uno o más pods y se aegura que finalizan correctamente. Util para realizar cálculos y operaciones
+
+### Dónde usar Kubernetes
+
+* Local (desarrollo)​
+    - https://minikube.sigs.k8s.io/docs/[Minikube]
+* Cloud​
+    - https://azure.microsoft.com/es-es/services/kubernetes-service/[AKS (Azure Kubernetes Service)]
+    - https://cloud.google.com/kubernetes-engine[GKE (Google Kubernetes Engine)]
+    - https://aws.amazon.com/es/eks/[EKS (Amazon Elastic Kubernetes Service)]
+    - ...
+* On premise​
+    - OpenStack (IaaS) + https://rancher.com/[Rancher] (Plafaorma de administración de Kubernetes)​
+    - ...
+    
+[[Minikube]]
+## Minikube
+
+Minikube es una implementación ligera de Kubernetes que crea una máquina virtual localmente y despliega un cluster sencillo formado por un solo nodo.
+
+En la https://github.com/kubernetes/minikube[página de GitHub de Minikube,window=_blank] se encuentra información sobre el proyecto, https://kubernetes.io/docs/tasks/tools/install-minikube/[instalación,window=_blank] y otros temas de interés.
+
+Una vez instalado, probaremos los comandos básicos:
+
+* Iniciar un cluster: `minikube start` 
+
++
+[NOTE]
+====
+La primera vez que ejecutemos este comando descargará la ISO de Minikube, que son unos 130 MB, y creará la máquina virtual correspondiente. Después, la preparará para Kubernetes y tras unos minutos estará disponible minikube en nuestro puesto de trabajo.
+====
+
+* Acceso al Dashboard de Kubernetes: `minikube dashboard`
+* Detener el cluster local: `minikube stop`
+* Eliminar el cluster local: `minikube delete`
+* Iniciar un segundo cluster local: `minikube start -p cluster2`
+
+.Instalación de Minikube en Windows
+
+Instalar Minikube y el CLI de Kubernetes.
+
+****
+[source, bash]
+----
+$ choco install minikube kubernetes-cli
+Chocolatey v0.10.15
+Installing the following packages:
+minikube;kubernetes-cli
+By installing you accept licenses for the packages.
+Progress: Downloading Minikube 1.15.1... 100%
+
+Minikube v1.15.1 [Approved]
+minikube package files install completed. Performing other installation steps.
+ ShimGen has successfully created a shim for minikube.exe
+ The install of minikube was successful.
+  Software install location not explicitly set, could be in package or
+  default install location if installer.
+kubernetes-cli v1.19.3 already installed.
+ Use --force to reinstall, specify a version to install, or try upgrade.
+
+Chocolatey installed 1/2 packages.
+ See the log for details (C:\ProgramData\chocolatey\logs\chocolatey.log).
+
+Warnings:
+ - kubernetes-cli - kubernetes-cli v1.19.3 already installed.
+ Use --force to reinstall, specify a version to install, or try upgrade.
+----
+****
+
+Si ahora abrimos el dashboard con `minikube dashboard`, se mostraría algo similar a lo de la figura siguiente. En la figura se muestra información sobre el nodo que forma el cluster creado.
+
+image::images/Minikube-Nodes.png[]
+
+## `kubectl` (el CLI de Kubernetes)
+
+Para la interacción con un cluster local o remoto de Kubernetes mediante comandos se usa `kubectl`, un CLI sencillo que nos permitirá realizar tareas habituales como despliegues, escalar el cluster u obtener información sobre los servicios en ejecución. `kubectl` es el CLI para interactuar con el servidor de la API de Kubernetes.
+
+[NOTE]
+====
+Para más información, consultar la https://kubernetes.io/es/docs/tasks/tools/install-kubectl/#instalar-kubectl[página oficial de instalación y configuración de `kubectl`,window=_blank]
+====
+
+Para interactuar con unos ejemplos sencillo con `kubectl` podemos
+
+* Obtener información de la versión
+
++
+[source, bash]
+----
+$ kubectl version
+Client Version: version.Info{Major:"1", Minor:"19", GitVersion:"v1.19.3", GitCommit:"1e11e4a2108024935ecfcb2912226cedeafd99df", GitTreeState:"clean", BuildDate:"2020-10-14T12:50:19Z", GoVersion:"go1.15.2", Compiler:"gc", Platform:"windows/amd64"}
+Server Version: version.Info{Major:"1", Minor:"19", GitVersion:"v1.19.4", GitCommit:"d360454c9bcd1634cf4cc52d1867af5491dc9c5f", GitTreeState:"clean", BuildDate:"2020-11-11T13:09:17Z", GoVersion:"go1.15.2", Compiler:"gc", Platform:"linux/amd64"}
+----
+
+* Obtener información del cluster
+
++
+[source, bash]
+----
+$ kubectl cluster-info
+Kubernetes master is running at https://127.0.0.1:32768
+KubeDNS is running at https://127.0.0.1:32768/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+
+To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'
+----
+
+* Obtener los nodos que forman el cluster
+
++
+[source, bash]
+----
+$ kubectl get nodes
+NAME       STATUS   ROLES    AGE   VERSION
+minikube   Ready    master   32h   v1.19.4
+----
+
+* Otras operaciones de interés son: 
+    - `kubectl get pods` para listar todos los pods desplegados.
+    - `kubectl get all` para listar todos los objetos desplegados.
+    - `kubectl describe <resource>` para obtener información detallada sobre un recurso.
+    - `kubectl logs <pod>` para mostrar los logs de un contenedor en un pod.
+    - `kubectl exec <pod> <command>` para ejecutar un comando en un contenedor de un pod.
+
+### Despliegue mediante archivos YAML
+
+La forma de operar con Kubernetes consiste en crear archivos https://es.wikipedia.org/wiki/YAML[YAML] especificando el objeto que se quiere crear en Kubernetes (Pod, ReplicaSet, Deployment, Service, ConfigMap, Secret, Namespace, …​). Una vez creados estos archivos, se usará `kubectl` para cargarlos/desplegarlos en Kubernetes.
+
+[TIP]
+====
+El uso de archivos para despliegues Kubernetes nos permitirá además beneficiarnos de las ventajas de los sistemas de control de versiones, sometiendo nuestros recursos de Kubernetes al control de versiones, facilidad de distribución y trabajo en equipo.
+====
+
+A modo de ejemplo probaremos a hacer un despliegue en Kubernetes de Nginx con 4 réplicas. En la figura se observa cómo ha sido creado el _Deployment_ `nginx`.
+
+image::images/Workload-Nginx.png[]
+
+[NOTE]
+====
+Un _Deployment_ es un objeto Kubernetes que de forma declarativa especifica, entre otros, la imagen usada para desplegar los pods, el número de réplicas deseadas, recursos (RAM, CPU, ...) solicitados para los pods, y demás.
+====
+
+Usaremos `kubectl apply -f <file-URL-or-directory>` para desplegar los objetos contenidos en los archivos de configuración especificados.
+
+[source, bash]
+----
+$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/a5685c96a7119908a8d0975eff4907f7/raw/2e7d8d3a6ef64e7937e345b933223dceb2ff69d3/k8s-nginx.yml
+----
+
+.Archivo YAML de configuración
+****
+Un archivo YAML de configuración incluye varios elementos, entre los que destacamos estos por ahora:
+
+* `apiVersion`: Determina los componenetes que se pueden incluir en una configuración del tipo de objeto desplegado.
+* `kind`: Tipo de objeto desplegado.
+* `metadata`: Metadatos del despliegue.
+* `spec`: Número de réplicas del despliegue, imagen a utilizar, nombre de los pods, ...
+
+[source, yaml]
+----
+apiVersion: apps/v1 <1>
+kind: Deployment <2>
+metadata: 
+  name: nginx <3>
+  labels: 
+    app: nginx
+spec: 
+  replicas: 4 <4>
+  selector: 
+    matchLabels:
+      app: nginx 
+  template: 
+    metadata:
+      labels: 
+        app: nginx
+    spec:
+      containers:
+      - name: nginx <5> 
+        image: nginx <6>
+        ports:
+        - containerPort: 80 <7>
+----
+<1> Versión de la API
+<2> Tipo de objeto Kubernetes
+<3> Nombre del deployment
+<4> Número de réplicas a desplegar de cada contenedor
+<5> Nombre de los contenedores
+<6> Imagen a desplegar
+<7> Puerto de los contenedores
+****
+
+## Componentes de Kubernetes en acción
+
+### Namespace
+
+Los namespaces permiten organizar los despliegues realizados en un cluster. Definen un espacio de nombres y se suele utilizar para separar los recursos de aplicaciones o usuarios. Cada recurso tiene que tener un nombre único en el namespace al que pertenezca. 
+
+A continuación se muestra la configuración YAML para crear un namespace.
+
+[source, yaml]
+----
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+----
+
+Despliegue del manifiesto para crear el pod
+
+[source, bash]
+----
+$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/d9468f456eed8c65bf6f0174d8c8a591/raw/5eea37fd4d2f6c9999b0c1976576c7975c32e7a0/demons.yml
+----
+
+Tras crear el namespace, cambiaremos a él para poder ver las configuraciones que se vayan desplegando en él.
+
+image::images/namespace.png[]
+
+[NOTE]
+====
+Los namespaces no se pueden anidar.
+====
+
+Para mostrar los namespaces: `kubectl get namespaces`
+
+[source, bash]
+----
+$ kubectl get namespaces
+NAME                   STATUS   AGE
+default                Active   38h
+demo                   Active   5m1s <1>
+kube-node-lease        Active   38h
+kube-public            Active   38h
+kube-system            Active   38h
+kubernetes-dashboard   Active   38h
+----
+<1> Namespace creado
+
+### Pod
+
+Los pods son la unidad atómica de Kubernetes. Un Pod es una abstracción de Kubernetes que representa un grupo de uno o más contenedores de una aplicación y algunos recursos compartidos de esos contenedores (p.e. volúmenes, redes)
+
+[NOTE]
+====
+Un ejemplo de pod con más de un contenedor lo encontramos en lo que se denominan _sidecars_. Ejemplos de sidecar los encontramos en aplicaciones que registran su actividad en un contenedor (sidecar) dentro del mismo pod y publican la actividad en una aplicación que monitoriza el cluster. Otro ejemplo de sidecar es el de un contenedor sidecar que proporciona un certificado SSL para comunicación https al contenedor de la aplicación. Otro ejemplo más lo podemos encontrar en un sidecar que actúa como volumen.
+====
+
+Los contenedores de un pod comparten una IP y un espacio de puertos, y siempre van juntos y se despliegan juntos en un nodo. La figura siguiente ilustra varias configuraciones de pods: 
+
+* Pod 1: Un pod con un contenedor
+* Pod 2: Un pod con un contenedor y un volumen
+* Pod 3: Un pod con dos contenedores que comparten un volumen
+* Pod 4: Un pod con varios contenedores y varios volúmenes
+
+image::images/KubernetesPod.svg[]
+
+#### Creación de un pod con una web básica
+
+Para ilustrar cómo crear un pod mediante una manifiesto YAML, veremos cómo crear uno sencillo para uns web básica. Para ir familiarizándonos con Kubernetes, probaremos también con unos comandos básicos para mostrar información, mostrar los logs y redirección de puertos
+
+
+Comenzaremos con la creación del manifiesto YAML.
+
+
+[source, yaml]
+----
+apiVersion: v1
+kind: Pod <1>
+metadata:
+  name: myweb <2> 
+  namespace: demo <3>
+spec:
+  containers:
+    - name: myweb <4>
+      image: ualmtorres/myweb:v0 <5>
+----
+<1> Pod como objeto Kubernetes a desplegar
+<2> Nombre del pod
+<3> Namespace donde se alojará el pod
+<4> Nombre del contenedor dentro del pod
+<5> Imagen para crear el contenedor
+
+[NOTE]
+====
+En este caso el pod definido sólo tiene un contenedor. Los contenedores de un poc se definen en el elemento `containerrs` de `spec`.
+====
+
+A continución, realizaremos el despliegue del manifiesto para crear el pod.
+
+[source, bash]
+----
+$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/3cd0bd79b7179c8b4e208a5b7d6b4b70/raw/fc0a1a08df26b20d9e75065a75c44c1cefa3ceb1/myweb.yml
+----
+
+El pod se mostrará creado en la zona de pods.
+
+image::images/pod-myweb.png[]
+
+Para mostrar el pod creado en el namespace `demo`: 
+
+[source, bash]
+----
+$ kubectl get pods -n demo
+NAME    READY   STATUS    RESTARTS   AGE
+myweb   1/1     Running   0          4m22s
+----
+
+Si no se especifica el namespace, `kubectl` devuelve los pods del namespace `default`.
+
+[source, bash]
+----
+$ kubectl get pods
+NAME                     READY   STATUS    RESTARTS   AGE
+nginx-7764c7498d-gh86h   1/1     Running   0          4h22m
+nginx-7764c7498d-m9cxr   1/1     Running   0          4h22m
+nginx-7764c7498d-mt8r7   1/1     Running   0          4h22m
+nginx-7764c7498d-svfkb   1/1     Running   0          4h22m
+----
+
+**Inicio de sesión SSH en el pod**
+
+[source, bash]
+----
+$ kubectl -n demo --stdin --tty exec myweb -- /bin/bash
+----
+
+**Mostrar información del pod**
+
+[source, bash]
+----
+$  kubectl describe pod -n demo myweb
+----
+
+**Mostrar los logs del pod**
+
+[source, bash]
+----
+$ kubectl logs -n demo myweb
+----
+
+**Redirección del puerto del pod a un puerto local (establece un túnel SSH entre nuestro equipo y el pod con los puertos indicados)**
+
+[source, bash]
+----
+$ kubectl port-forward -n demo myweb 80:80 
+----
+
+[NOTE]
+====
+Al hacer un _port-foward_ el primer puerto es el local. El segundo es el del contenedor.
+====
+
+Ahora en `localhost` podremos ver que es lo que está sirviendo el contenedor en el puerto 80.
+
+image::images/port-forward.png[]
+
+**Eliminación del pod**
+
+[source, bash]
+----
+$ kubectl delete -f https://gist.githubusercontent.com/ualmtorres/3cd0bd79b7179c8b4e208a5b7d6b4b70/raw/fc0a1a08df26b20d9e75065a75c44c1cefa3ceb1/myweb.yml
+----
+
+.Nodos
+****
+Los pods se ejecutan en un Nodo. Un nodo es una máquina _worker_ (física o virtual) del cluster. Los nodos están gestionados por el Master. Un Nodo puede contener muchos pods.
+
+image::images/KubernetesNode.svg[]
+
+Cada Nodo ejecuta al menos:
+
+* `Kubelet`, un proceso que se encarga de la comunicación entre el nodo y el Master. Gestiona los pods y los contenedores que se están ejecutando en el nodo.
+* Un motor de contenedores, como Docker, que se encarga de la descarga de imágenes de un registro y de ejecutar la aplicación.
+****
+
+### Deployment
+
+Normalmente no desplegaremos Pods. En su lugar desplegaremos Deployments. En ellos podremos incluir contenedores con imágenes diferentes para que puedan trabajar de forma coordinada. Un ejemplo habitual es el de frontend y backend. En la espeficación de los contenedores indicaremos además de la imagen de partida, número de réplicas, recursos solicitados (p.e. cantidad de RAM, porcentaje de CPU, ...). Esto, además de desacoplar frontend y backend, desde el punto de vista de la escalabilidad, permite escalar frontend y backend de forma independiente.
+
+[NOTE]
+====
+Un archivo de Deployment proporciona una forma declarativa de creación de Pods y ReplicaSets. En el archivo de Deployment se especifica el estado deseado.
+====
+
+Una configuración de Deployment pide a Kubernetes que cree y actualice las instancias de una aplicación. Tras crear el Deployment, el Master organiza las instancias de aplicación en los nodos disponibles del cluster.
+
+image::images/KubernetesDeployment.svg[]
+
+Una vez creadas las instancias de aplicación, el *Controlador de Deployment de Kubernetes* monitoriza continuamente las instancias. Si un nodo en el que está una instancia cae o es eliminado, el Controlador de Deployment de Kubernetes sustituye la instancia por otra instancia en otro nodo disponible del cluster.
+
+Esta funcionalidad de _autocuración_ de las aplicaciones supone un cambio radical en la gestión de las aplicaciones. Esta característica de recuperación de fallos mediante la creación de nuevas instancias que reemplazan a las defectuosas o desaparecidas no existía antes de los orquestadores.
+
+Al crear un Deployment se especifica la imagen del contenedor que usará la aplicación y el número de réplicas que se quieren mantener en ejecución. El número de réplicas se puede modificar en cualquier momento actualizando el Deployment.
+
+Para ilustrar el uso de `Deployment` vamos a ver un ejemplo de despliegue que incluye una API y una aplicación que consume de ella. Lo haremos de forma separada para poder ilustrar su funcionamiento.
+
+#### Despliegue de la API
+
+La API de este ejemplo devuelve datos de tenistas de la ATP. A continuación se muestran los endpoints de la API.
+
+.Endpoints de Tennis API
+[width="100%",options="header"]
+|====================
+| Método | Endpoint |  Descripción
+| `GET` | `player` |  Obtiene lista de identificadores de jugadores
+| `GET` | `player/{id}` |  Devuelve información sobre un jugador específico
+| `GET` | `country` |  Obtiene lista de identificadores de países
+| `GET` | `country/{id}` |  Devuelve el país y todos sus jugadores
+|====================
+
+Este sería el archivo de despliegue.
+
+[source, yaml]
+----
+apiVersion: apps/v1
+kind: Deployment <1>
+metadata:
+  name: tennis-api <2>
+  namespace: demo <3> 
+  labels:
+    app: tennis-api <4>
+spec:
+  revisionHistoryLimit: 2 <5>
+  strategy:
+    type: RollingUpdate <6>
+  replicas: 2 <7>
+  selector:
+    matchLabels:
+      app: tennis-api <8>
+  template: <9>
+    metadata:
+      labels: <10>
+        app: tennis-api
+    spec:
+      containers:
+      - name: tennis-api <11>
+        image: ualmtorres/tennis-api:v0 <12>
+        ports:
+        - name: http
+          containerPort: 80 <13>
+----
+<1> Tipo de recurso a desplegar
+<2> Nombre del despliegue
+<3> Namespace de despliegue
+<4> Etiqueta que usar el Deployment para ser luego seleccionado por otro objeto Kubernetes (p.e. Service).
+<5> Número de versiones almacenadas para poder deshacer despliegues fallidos
+<6> Tipo de estrategia de actualización
+<7> Número de réplicas del despliegue
+<8> Selector que define cómo el Deployment encuentra los Pods a gestionar, *que coincide con el definido en la plantilla (template) del pod*
+<9> Zona (plantilla) de definición del pod
+<10> Etiquetas asignadas a los pods y que les permitirán ser seleccionados para formar parte de un Deployment
+<11> Prefijo usado para los pods
+<12> Imagen base para los contenedores de la aplicación
+<13> Puerto por el que la aplicación sirve originalmente sus datos
+
+[NOTE]
+====
+La estrategia de despliegue (`spec.strategy.type`) puede ser `Recreate` o `RollingUpdate`, que es el valor predeterminado.
+====
+
+El despliegue se realiza con `kubectl` con el comando siguiente
+
+[source, bash]
+----
+$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/0729de5e0ff5b5fdd931abcc6aa2fc5a/raw/a5e992b4e240d011b01749ec16d01bdd3c0bf7b1/tennis-api-deployment.yml
+----
+
+Al crear el despliegue, se procederá a descargar la imagen y se pasarán a crear los dos pods indicados para este despliegue. Podemos ver los pods creados con el comando siguiente comprobando que efectivamente se creado los dos pods jsonreader que exigía el despliegue.
+
+Podemos ver los pods del despliegue con el comando siguiente
+
+[source, bash]
+----
+$ kubectl get pods -n demo
+NAME                          READY   STATUS    RESTARTS   AGE
+tennis-api-69868cf47b-hslq6   1/1     Running   0          10s
+tennis-api-69868cf47b-j8gmd   1/1     Running   0          10s
+----
+
+Este comando ha hecho que el Master haya buscado nodos para ejecutar la API, haya programado la ejecución de la API en esos nodos y haya configurado el cluster para programar la ejecución de otras instancias cuando sea necesario.
+
+[NOTE]
+====
+Para imágenes que no estén en Docker Hub se pasa la URL completa del repositorio de imágenes.
+====
+
+Ahora podríamos ver a cualquiera de los pods de `tennis-api` haciendo _port forward_ a nuestro equipo.
+
+[source, bash]
+----
+$ kubectl port-forward tennis-api-69868cf47b-hslq6 -n demo 80:80
+Forwarding from 127.0.0.1:80 -> 80
+Forwarding from [::1]:80 -> 80
+----
+
+Este sería el resultado de una llamada a la API (`http://localhost/player/rafael-nadal`).
+
+image::images/tennis-api-RafaNadal.png[]
+
+Para obtener los Deployments disponibles
+
+[source, bash]
+----
+$ kubectl get deployments -n demo
+
+NAME         READY   UP-TO-DATE   AVAILABLE   AGE
+tennis-api   2/2     2            2           13s
+----
+
+#### Despliegue de la aplicación
+
+La aplicación de este ejemplo comienza mostrando la lista de países de la API para que seleccionemos en cuál estamos interesados en mostrar sus jugadores.
+
+Este sería el archivo de despliegue.
+
+[source, bash]
+----
+apiVersion: apps/v1
+kind: Deployment 
+metadata:
+  name: tennis-app 
+  namespace: demo 
+  labels:
+    app: tennis-apo
+spec:
+  revisionHistoryLimit: 2 
+  strategy:
+    type: RollingUpdate 
+  replicas: 2 
+  selector:
+    matchLabels:
+      app: tennis-app 
+  template: 
+    metadata:
+      labels: 
+        app: tennis-app
+    spec:
+      containers:
+      - name: tennis-app 
+        image: ualmtorres/tennis-app:v0 <1>
+        ports:
+        - name: http
+          containerPort: 80
+----
+<1> Despliegue realizado a partir de la imagen de la aplicación
+
+El despliegue se realiza con `kubectl` con el comando siguiente
+
+[source, bash]
+----
+$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/3d4d28d2a245bbd348c300fa9594f133/raw/b3c799c50bb00c8536fd7c67523f9f0ed38eef0a/tennis-app-deployment.yml
+----
+
+Ahora vemos que han aumentado los pods disponibles. Ahora están los de la API y los de la aplicación. Podemos ver los pods del despliegue con el comando siguiente
+
+[source, bash]
+----
+$ kubectl get pods -n demo
+NAME                          READY   STATUS    RESTARTS   AGE
+tennis-api-69868cf47b-hslq6   1/1     Running   0          5m
+tennis-api-69868cf47b-j8gmd   1/1     Running   0          5m
+tennis-app-c9cdf4cbf-n7klt    1/1     Running   0          6m
+tennis-app-c9cdf4cbf-nnz5x    1/1     Running   0          6m
+----
+
+Ahora podríamos ver a cualquiera de los pods de `tennis-app` haciendo _port forward_ a nuestro equipo. Usaremos el puerto `81` local porque tenemos ocupado el `80` con la API.
+
+[source, bash]
+----
+$ kubectl port-forward -n demo tennis-app-c9cdf4cbf-n7klt 81:80
+Forwarding from 127.0.0.1:81 -> 80
+Forwarding from [::1]:81 -> 80
+----
+
+Sin embargo, vemos que la aplicación no puede recuperar los datos de la API. Esto se debe a que aún no hay definido un servicio. Los servicios gestionan el descubrimiento y enrutado entre pods dependientes (p.e. aplicación y API). En la siguiente sección encontraremos la solución a ese problema.
+
+image::images/tennis-app-noData.png[]
+
+### Service
+
+Un `Service` es una abstracción que define una agrupación de Pods y una política de acceso a ellos. El conjunto de Pods al que se dirige un Service están determinados por un *selector*.
+
+Vamos a crear un archivo de Servicio denominado `tennis-api-service.yml`. Este archivo básicamente contiene entre otros el nombre de servicio, el tipo del servicio (ClusterIP, NodePort, ...), el puerto de acceso a los pods del despliegue y el selector que identifica al despliegue con el que se corresponde el servicio creado.
+
+[source, yaml]
+----
+apiVersion: v1
+kind: Service <1>
+metadata:
+  name: tennis-api <2>
+  namespace: demo <3>
+spec:
+  type: NodePort <4>
+  ports:
+  - name: http
+    port: 80 <5>
+    targetPort: http
+  selector:
+    app: tennis-api <6>
+----
+<1> Tipo de recurso a desplegar
+<2> Nombre del servicio
+<3> Namespace de despliegue
+<4> Tipo de servicio. NodePort hará que el servicio esté disponible en la IP de los nodos en los que estén los pods y un puerto aleatorio entre 30000 y 32767
+<5> Puerto en el que los pods están sirviendo su contenido
+<6> Etiqueta que usa el servicio para localizar al Deployment. Buscará un valor coincidente en la etiqueta `labels` del Deployment.
+
+El despliegue se realiza con `kubectl` con el comando siguiente
+
+[source, bash]
+----
+$ kubectl create -f https://gist.githubusercontent.com/ualmtorres/1a8ecdf86088321d757962b22834db55/raw/5f701537d82f60ae050e41f70235ed9f1f68f4d9/tennis-api-service.yml
+----
+
+El despliegue nos permitirá acceder a la aplicación en un puerto en el rango 30000-32767. En este caso ha tocado el 31274
+
+[source, bash]
+----
+$ kubectl get services -n demo
+NAME         TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
+tennis-api   NodePort   10.105.134.43   <none>        80:31274/TCP   11h
+----
+
+Una vez desplegado el servicio, la aplicación ya sí podrá recuperar los datos de la API. La figura siguiente muestra la aplicación mostrando la lista de países con jugadores en la ATP.
+
+image::images/tennis-app-countries.png[]
+
+Si se selecciona alguno de los países (p.e. `ESP`) se mostrarán los jugadores de la ATP desde sus inicios. Los datos tambiéne son recuperados de la API. La figura siguiente muestra jugadores españoles.
+
+image::images/tennis-app-players.png[]
+
+También podemos usar el Kubernetes Dashboard para mostrar información de interés sobre este despliegue, viendo como los Deployment de `tenis-api` y `tennis-app` se han incorporado a la lista de despliegues disponibles en el cluster, así como los Pods, ReplicaSets y Services, como muestran las figuras siguientes.
+
+image::images/dashboard-tennis-services-pods.png[]
+
+image::images/dashboard-tennis-replicasets.png[]
+
+image::images/dashboard-tennis-services.png[]
+
+Recordemos que la aplicación no podía obtener la lista de países que ofrecía la API. Esto se debía a que se había desplegado el Deployment de la API, pero no se había desplegado su Service, que es lo que le da visibilidad.
+
+Al desplegar el servicio de la API ya podremos ver que la aplicación ya sí puede acceder a los datos que genera la API.
+
+### ConfigMaps
+
+To DO
+
+### Secrets 
+
+To Do
+
+## HPA. Horizontal Pod Autoscaler
+
+El Horizontal Pod Autoscaler, o HPA pasa simplificar, escala de forma automática el número de réplicas de un pod en función de la observación de métricas de los pods (p.e. el uso de la CPU).
+
+De forma escueta podemos resumir de esta forma su funcionamiento:
+
+* En su definición se fija un mínimo y máximo de réplicas de un deployment
+* En su definición se definen las condiciones de stress (p.e. porcentaje de uso de la CPU)
+* HPA consulta cada 15s las métricas de uso (CPU, RAM, ...) de cada pod
+* Ante stress HPA escala hacia arriba
+* HPA escala hacia abajo tras un periodo de 5 minutos sin stress
+
+image::images/HPA.png[]
+
+A continuación se muestran la redefinición de los Deployment de los ejemplos de la API y de la aplicación del ejemplo del tenis especificando una petición de CPU y memoria para cada pod.
+
+Archivo `tennis-api-deployemnt-hpa.yml` indicando límites de CPU y memoria:
+[source, yaml]
+----
+apiVersion: apps/v1
+kind: Deployment 
+metadata:
+  name: tennis-api 
+  namespace: demo 
+  labels:
+    app: tennis-api 
+spec:
+  revisionHistoryLimit: 2 
+  strategy:
+    type: RollingUpdate 
+  replicas: 2 
+  selector:
+    matchLabels:
+      app: tennis-api 
+  template: 
+    metadata:
+      labels: 
+        app: tennis-api
+    spec:
+      containers:
+      - name: tennis-api 
+        image: ualmtorres/tennis-api:v0 
+        ports:
+        - name: http
+          containerPort: 80
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+----
+
+El despliegue se realiza con `kubectl` con el comando siguiente
+
+[source, bash]
+----
+$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/9060280266cbb6c829706aee77eec3f7/raw/e481fee7251a086e30cd3dc2af1c95182cba72bd/tennis-api-hpa.yml
+----
+
+[NOTE]
+====
+La petición de CPU es relativa a unidades teniendo en cuenta lo siguiente:
+
+* 1 CPU equivale a 1 vCPU en un entorno cloud
+* 1 Hyperthread en un servidor con procesador Intel con Hyperthreading
+
+Las peticiones se hacen en miliCPUs o en fracciones decimales de CPU. Así una petición de 100m y de 0.1 representan la misma cantidad de CPU solicitada. 
+
+La unidad mínima solicitada es 1m (1 miliCPU).
+====
+
+.Qué ocurre si no se especifica un límite de uso de la CPU
+****
+Cuando no se especifica límite de CPU para un contenedor puede pasar una de estas dos situaciones:
+
+* Si el contenedor está en un namespace que tiene definido un límite de uso de CPU, el contenedor podrá llegar como máximo hasta ese límite. Los administradores del cluster pueden usar `LimitRange` para configurar un tope de uso de la CPU.
+* Si no hay límite definido, el contenedor podría llegar todos los recursos de CPU del nodo en el que se está ejecutando.
+****
+
+[NOTE]
+====
+También es posible limitar los recursos de RAM asignados a un contenedor. Consultar la https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/[documentación oficial sobre la asignación de recursos de RAM a un contenedor] para más información.
+====
+
+Archivo `tennis-app-deployemnt-hpa.yml` indicando límites de CPU y memoria:
+[source, yaml]
+----
+apiVersion: apps/v1
+kind: Deployment 
+metadata:
+  name: tennis-app 
+  namespace: demo 
+  labels:
+    app: tennis-app
+spec:
+  revisionHistoryLimit: 2 
+  strategy:
+    type: RollingUpdate 
+  replicas: 2 
+  selector:
+    matchLabels:
+      app: tennis-app 
+  template: 
+    metadata:
+      labels: 
+        app: tennis-app
+    spec:
+      containers:
+      - name: tennis-app
+        image: ualmtorres/tennis-app:v0 
+        ports:
+        - name: http
+          containerPort: 80
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+----
+
+El despliegue se realiza con `kubectl` con el comando siguiente
+
+[source, bash]
+----
+$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/3ee88d2ccb75121d61e1c70cfffcaccf/raw/d09e767f9d43c8e01a6a1268b92dc4c12dc7e348/tennis-app-hpa.yml
+----
+
+A continuación se muestra el manifiesto que crea un servicio para cada deployment.
+
+[source, bash]
+----
+apiVersion: v1
+kind: Service 
+metadata:
+  name: tennis-api 
+  namespace: demo 
+spec:
+  type: NodePort 
+  ports:
+  - name: http
+    port: 80 
+    targetPort: http
+  selector:
+    app: tennis-api
+---
+apiVersion: v1
+kind: Service 
+metadata:
+  name: tennis-app
+  namespace: demo 
+spec:
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 80 
+    targetPort: http
+  selector:
+    app: tennis-app
+----
+
+El despliegue se realiza con `kubectl` con el comando siguiente
+
+[source, bash]
+----
+$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/2a0a96749a8b0ced6b8fdd81a9258920/raw/23463255967a4156d1390befdd3bec872ae79bc0/tennis-service.yml
+----
+
+Una vez definidos los objetos Deployment y sus Service correspondientes, pasamos a crear el HPA que monitorizará el uso de recursos de los contenedores y solicitará su autoescalado en función del uso de los recursos. En este caso, y para poder ver en acción fácilmente el autoescalado en acción, fijamos que a partir del 15% de uso de la CPU se soliten la creación de nuevos pods. También se indica que el intervalo de escalado esté entre 1 y 10 réplicas según demanda.
+
+[source, bash]
+----
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+ name: tennis-api
+spec:
+ scaleTargetRef:
+   apiVersion: apps/v1beta1
+   kind: Deployment
+   name: tennis-api
+ minReplicas: 1
+ maxReplicas: 10
+ targetCPUUtilizationPercentage: 15
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+ name: tennis-app
+spec:
+ scaleTargetRef:
+   apiVersion: apps/v1beta1
+   kind: Deployment
+   name: tennis-app
+ minReplicas: 1
+ maxReplicas: 10
+ targetCPUUtilizationPercentage: 15
+----
+
+El despliegue se realiza con `kubectl` con el comando siguiente
+
+[source, bash]
+----
+$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/ff53c0d1ff1c00487bf49f1fe78d835e/raw/f2321d2a17343841dac473a6889e6866c33bd60e/tennis-hpa.yml
+----
+
+Podemos acceder al estado y condiciones del autoescalado con el comando siguiente.
+
+[source, bash]
+----
+$  kubectl get hpa -n demo
+NAME         REFERENCE               TARGETS         MINPODS   MAXPODS   REPLICAS   AGE
+tennis-api   Deployment/tennis-api   <unknown>/15%   1         10        2          51s
+tennis-app   Deployment/tennis-app   <unknown>/15%   1         10        2          51s
+----
+
+### Prueba de stress de autoescalado
+
+To Do
+
+## Google Kubernetes Engine (Sin finalizar)
+
+Al principio aparece 
+
+image::images/GKE-SinCluster.png[]
+
+Seleccionamos `Crear cluster`
+
+Aparece Asistente para creación de cluster. Se recomienda usar la opción `Mi primer cluster` que crea un cluster sencillo para probar. 
+
+image::images/GKE-FormularioInicial.png[]
+
+image::images/GKE-CreaTuPrimerCluster.png[]
+
+Está formado por 3 nodos de 1vCPU y 1,7 GB de RAM cada uno.
+
+image::images/GKE-ClusterCreado.png[]
+
+
+Creamos una cuenta de servicio. La denominamos k8s`. Dejamos el resto de valores con los valores predeterminados.
+
+Le damos al botón `Conectar` para obtener las credenciales.
+
+image::images/GKE-ConectarCluster.png[]
+
+Le damos a `Ejecutar en Cloud Shell`. Nos saldrá un aviso pidiendo autorización. Aceptaremos la autorización. Aparecerá el comando para ejecutarlo. 
+
+[source, bash]
+----
+$ gcloud container clusters get-credentials my-first-cluster-1 --zone us-central1-c --project innovati21
+Fetching cluster endpoint and auth data.
+kubeconfig entry generated for my-first-cluster-1
+----
+
+Descargar gcloud si no se tiene instalado. Seguir esta guía (https://cloud.google.com/sdk/docs/install). Tras la instalación nos pedirá que conectemos con nuestro usuario y que seleccionemos el proyecto. Así, `gcloud` quedará conectado a nuestro proyecto en Google Cloud.
+
+Obtener las credenciales de acceso al cluster.
+
+gcloud container clusters get-credentials CLUSTER_NAME \
+    --zone=COMPUTE_ZONE
+    
+Despliegue de prueba: Se verán los pods.
+
+[source, bash]
+----
+$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/a5685c96a7119908a8d0975eff4907f7/raw/2e7d8d3a6ef64e7937e345b933223dceb2ff69d3/k8s-nginx.yml
+----
+
+image::images/GKE-nginx.png[]
+
+[source, bash]
+----
+$ kubectl get pods
+NAME                   READY   STATUS    RESTARTS   AGE
+nginx-7bf5f699-k6tsr   1/1     Running   0          6m49s
+nginx-7bf5f699-vfkz8   1/1     Running   0          6m49s
+----
+
+Con port-forward podremos ver el Nginx.
+
+### Parada del cluster
+
+Selecciona, editar, ir a la zona de Grupos de nodos, seleccionar y poner el número de nodos a 0.
+
+### Ampliación del cluster y autoescalado
+
+Selecciona, editar, ir a la zona de Grupos de nodos, seleccionar y poner el número de nodos al deseado.
+
+Seguir los mismos pasos y activar el autoescalado indicando mínimo y máximo de nodos
