@@ -453,15 +453,15 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#truesecrets">6.6. Secrets</a></li>
 </ul>
 </li>
-<li><a href="#truehpa-horizontal-pod-autoscaler">7. HPA. Horizontal Pod Autoscaler</a>
+<li><a href="#truegoogle-kubernetes-engine-sin-finalizar">7. Google Kubernetes Engine (Sin finalizar)</a>
 <ul class="sectlevel2">
-<li><a href="#trueprueba-de-stress-de-autoescalado">7.1. Prueba de stress de autoescalado</a></li>
+<li><a href="#trueparada-del-cluster">7.1. Parada del cluster</a></li>
+<li><a href="#trueampliaci-n-del-cluster-y-autoescalado">7.2. Ampliación del cluster y autoescalado</a></li>
 </ul>
 </li>
-<li><a href="#truegoogle-kubernetes-engine-sin-finalizar">8. Google Kubernetes Engine (Sin finalizar)</a>
+<li><a href="#truehpa-horizontal-pod-autoscaler">8. HPA. Horizontal Pod Autoscaler</a>
 <ul class="sectlevel2">
-<li><a href="#trueparada-del-cluster">8.1. Parada del cluster</a></li>
-<li><a href="#trueampliaci-n-del-cluster-y-autoescalado">8.2. Ampliación del cluster y autoescalado</a></li>
+<li><a href="#trueprueba-de-stress-de-autoescalado">8.1. Prueba de stress de autoescalado</a></li>
 </ul>
 </li>
 </ul>
@@ -618,7 +618,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>API server: Componente del Master que expone la API de Kubernetes. Es el front-end del plano de control de Kubernetes.</p>
 </li>
 <li>
-<p>Control Manager: Se encarga de comprobar si el estado deseado coincide con la realidad (p.e. número de réplicas)</p>
+<p>Controller Manager: Se encarga de comprobar si el estado deseado coincide con la realidad (p.e. número de réplicas)</p>
 </li>
 <li>
 <p>Scheduler: Componente del master que observa qué pods se han creado nuevos y no tienen nodo asignado, y les selecciona un nodo donde se puedan ejecutar.</p>
@@ -705,7 +705,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>DaemonSet. Asegura que cada nodo Kubernetes tiene una copia en ejecución de un Pod. Util como daemon de almacenamiento, logs o monitorización.</p>
 </li>
 <li>
-<p>Job. Crea uno o más pods y se aegura que finalizan correctamente. Util para realizar cálculos y operaciones</p>
+<p>Job. Crea uno o más pods y se asegura que finalizan correctamente. Util para realizar cálculos y operaciones</p>
 </li>
 </ul>
 </div>
@@ -747,7 +747,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="ulist">
 <ul>
 <li>
-<p>OpenStack (IaaS) + <a href="https://rancher.com/">Rancher</a> (Plafaorma de administración de Kubernetes)​</p>
+<p>OpenStack (IaaS) + <a href="https://rancher.com/">Rancher</a> (Plataforma de administración de Kubernetes)​</p>
 </li>
 <li>
 <p>&#8230;&#8203;</p>
@@ -1370,7 +1370,7 @@ nginx-7764c7498d-svfkb   1/1     Running   0          4h22m</code></pre>
 <div class="sect2">
 <h3 id="truedeployment"><a class="anchor" href="#truedeployment"></a>6.3. Deployment</h3>
 <div class="paragraph">
-<p>Normalmente no desplegaremos Pods. En su lugar desplegaremos Deployments. En ellos podremos incluir contenedores con imágenes diferentes para que puedan trabajar de forma coordinada. Un ejemplo habitual es el de frontend y backend. En la espeficación de los contenedores indicaremos además de la imagen de partida, número de réplicas, recursos solicitados (p.e. cantidad de RAM, porcentaje de CPU, &#8230;&#8203;). Esto, además de desacoplar frontend y backend, desde el punto de vista de la escalabilidad, permite escalar frontend y backend de forma independiente.</p>
+<p>Normalmente no desplegaremos Pods. En su lugar desplegaremos Deployments. En ellos podremos incluir contenedores con imágenes diferentes para que puedan trabajar de forma coordinada. Un ejemplo habitual es el de frontend y backend. En la especificación de los contenedores indicaremos además de la imagen de partida, número de réplicas, recursos solicitados (p.e. cantidad de RAM, porcentaje de CPU, &#8230;&#8203;). Esto, además de desacoplar frontend y backend, desde el punto de vista de la escalabilidad, permite escalar frontend y backend de forma independiente.</p>
 </div>
 <div class="admonitionblock note">
 <table>
@@ -1712,8 +1712,167 @@ Forwarding from [::1]:81 -&gt; 80</code></pre>
 <div class="paragraph">
 <p>Un <code>Service</code> es una abstracción que define una agrupación de Pods y una política de acceso a ellos. El conjunto de Pods al que se dirige un Service están determinados por un <strong>selector</strong>.</p>
 </div>
+<div class="sidebarblock">
+<div class="content">
+<div class="title">Agrupación de pods en servicios</div>
 <div class="paragraph">
-<p>Vamos a crear un archivo de Servicio denominado <code>tennis-api-service.yml</code>. Este archivo básicamente contiene entre otros el nombre de servicio, el tipo del servicio (ClusterIP, NodePort, &#8230;&#8203;), el puerto de acceso a los pods del despliegue y el selector que identifica al despliegue con el que se corresponde el servicio creado.</p>
+<p>Los pods pueden ser etiquetados con metadatos. Estos metadatos posteriormente pueden ser usados por otros objetos Kubernetes (p.e. ReplicaSet, Deployment) para seleccionar los pods y crear una unidad lógica (p.e. todas las réplicas de un contenedor de frontend)</p>
+</div>
+<div class="paragraph">
+<p>La figura siguiente ilustra como un servicio agrupa mediante el <strong>selector</strong> <code>app:ngnix</code> a aquellos pods que están etiquetados con <code>app:ngnix</code>.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="images/podlabels.png" alt="podlabels.png">
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-yaml" data-lang="yaml">apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  labels:
+    app: nginx
+spec:
+  replicas: 2
+  selector:
+    matchLabels: <i class="conum" data-value="1"></i><b>(1)</b>
+      app: nginx
+  template:
+    metadata:
+      labels: <i class="conum" data-value="2"></i><b>(2)</b>
+        app: nginx
+    spec:
+      containers:
+      - name: webcontainer
+        image: nginx
+        ports:
+        - containerPort: 80</code></pre>
+</div>
+</div>
+<div class="colist arabic">
+<table>
+<tr>
+<td><i class="conum" data-value="1"></i><b>1</b></td>
+<td>Condición para buscar</td>
+</tr>
+<tr>
+<td><i class="conum" data-value="2"></i><b>2</b></td>
+<td>Condición para ser encontrado</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Al desplegar este deployment se crearán dos pods (<code>replicas: 2</code>), que quedarán agrupados por la coincidencia entre el selector que pide el deployment (<code>app: nginx</code>) y la etiqueta con los que son creados los pods (<code>app: nginx</code>).</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ kubectl apply -f ngnix.yaml</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Si ahora vemos los detalles del deployment en el dashboard de Minikube veremos que los dos pods de Nginx creados están agrupados lógicamente en el deployment <code>ngnix</code>. Esta información está realmente en el objeto ReplicaSet creado por el Deployment.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="images/ReplicaSetPods.png" alt="ReplicaSetPods.png">
+</div>
+</div>
+</div>
+</div>
+<div class="paragraph">
+<p>Cada pod tiene una dirección IP única, pero esa IP no se expone fuera del cluster sin lo que se denomina un Servicio. <strong>Los servicios pemiten que las aplicaciones reciban tráfico</strong>.</p>
+</div>
+<div class="sect3">
+<h4 id="truetipos-de-servicio"><a class="anchor" href="#truetipos-de-servicio"></a>6.4.1. Tipos de servicio</h4>
+<div class="paragraph">
+<p>En función del ámbito de la exposición del servicio tenemos:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>ClusterIP</code>: El servicio recibe una IP interna a nivel de cluster y hace que el servicio sólo sea accesible a nivel de cluster.</p>
+</li>
+<li>
+<p><code>NodePort</code>: Expone el servicio fuera del cluster concatenando la IP del nodo en el que está el pod y un número de puerto entre 30000 y 32767, que es el mismo en todos los nodos</p>
+</li>
+<li>
+<p><code>LoadBalancer</code>: Crea en cloud, si es posible, un balanceador externo con una IP externa asignada.</p>
+</li>
+<li>
+<p><code>ExternalName</code>: Expone el servicio usando un nombre arbitrario (especificado en <code>externalName</code>)</p>
+</li>
+</ul>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="images/KubernetesService.svg" alt="KubernetesService.svg">
+</div>
+</div>
+<div class="paragraph">
+<p>Los servicios enrutan el tráfico entre los pods proporcionando una abstracción que permite que los pod mueran y se repliquen sin impactar en la aplicación.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>El descubrimiento y enrutado entre pods dependientes (p.e. API y aplicación) son gestionados por los Servicios. Los servicios agrupan a sus pods usando etiquetas y selectores. Los servicios usan selectores y los pods son creados con etiquetas. Su emparejamiento por valores coincidentes es lo que agupa los pods en un servicio.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Las etiquetas son pares clave-valor y tienen usos muy variados:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Seleccionar los objetos de un despliegue</p>
+</li>
+<li>
+<p>Diferenciar entre objetos de desarrollo, prueba y producción</p>
+</li>
+<li>
+<p>Distinguir entre versiones</p>
+</li>
+</ul>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="images/KubernetesLabels.svg" alt="KubernetesLabels.svg">
+</div>
+</div>
+<div class="paragraph">
+<p>En la figura se observa cómo el selector de etiquetas usado en los Deployment sirve para agrupar los pods que conforman un servicio, ya que cada pod contiene la misma etiqueta usada en el selector del Deployment al que pertenece.</p>
+</div>
+<div class="paragraph">
+<p>Las etiquetas se pueden configurar durante la creación o en cualquier momento posterior.</p>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Prueba a editar en el dashboard de kubernetes uno de los pods de Nginx cambiándole la etiqueta (p.e. <code>app:apache</code>). Esto hará que ese pod salga del ReplicaSet al que pertenecía y se cree automáticamente un nuevo pod etiquetado con <code>app:nginx</code>. De esto se encarga el Deployment, que de acuerdo a su especificación exige tener 2 réplicas en ejecución de pods con etiquetas <code>app:nginx</code>.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</div>
+<div class="sect3">
+<h4 id="truedespliegue-del-service"><a class="anchor" href="#truedespliegue-del-service"></a>6.4.2. Despliegue del Service</h4>
+<div class="paragraph">
+<p>Vamos a crear un archivo de Service denominado <code>tennis-api-service.yml</code>. Este archivo básicamente contiene entre otros el nombre de servicio, el tipo del servicio (ClusterIP, NodePort, &#8230;&#8203;), el puerto de acceso a los pods del despliegue y el selector que identifica al despliegue con el que se corresponde el servicio creado.</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -1795,7 +1954,7 @@ tennis-api   NodePort   10.105.134.43   &lt;none&gt;        80:31274/TCP   11h</
 </div>
 </div>
 <div class="paragraph">
-<p>También podemos usar el Kubernetes Dashboard para mostrar información de interés sobre este despliegue, viendo como los Deployment de <code>tenis-api</code> y <code>tennis-app</code> se han incorporado a la lista de despliegues disponibles en el cluster, así como los Pods, ReplicaSets y Services, como muestran las figuras siguientes.</p>
+<p>También podemos usar el Kubernetes Dashboard para mostrar información de interés sobre este despliegue, viendo como los Deployment de <code>tennis-api</code> y <code>tennis-app</code> se han incorporado a la lista de despliegues disponibles en el cluster, así como los Pods, ReplicaSets y Services, como muestran las figuras siguientes.</p>
 </div>
 <div class="imageblock">
 <div class="content">
@@ -1819,6 +1978,7 @@ tennis-api   NodePort   10.105.134.43   &lt;none&gt;        80:31274/TCP   11h</
 <p>Al desplegar el servicio de la API ya podremos ver que la aplicación ya sí puede acceder a los datos que genera la API.</p>
 </div>
 </div>
+</div>
 <div class="sect2">
 <h3 id="trueconfigmaps"><a class="anchor" href="#trueconfigmaps"></a>6.5. ConfigMaps</h3>
 <div class="paragraph">
@@ -1834,7 +1994,114 @@ tennis-api   NodePort   10.105.134.43   &lt;none&gt;        80:31274/TCP   11h</
 </div>
 </div>
 <div class="sect1">
-<h2 id="truehpa-horizontal-pod-autoscaler"><a class="anchor" href="#truehpa-horizontal-pod-autoscaler"></a>7. HPA. Horizontal Pod Autoscaler</h2>
+<h2 id="truegoogle-kubernetes-engine-sin-finalizar"><a class="anchor" href="#truegoogle-kubernetes-engine-sin-finalizar"></a>7. Google Kubernetes Engine (Sin finalizar)</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Al principio aparece</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="images/GKE-SinCluster.png" alt="GKE SinCluster.png">
+</div>
+</div>
+<div class="paragraph">
+<p>Seleccionamos <code>Crear cluster</code></p>
+</div>
+<div class="paragraph">
+<p>Aparece Asistente para creación de cluster. Se recomienda usar la opción <code>Mi primer cluster</code> que crea un cluster sencillo para probar.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="images/GKE-FormularioInicial.png" alt="GKE FormularioInicial.png">
+</div>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="images/GKE-CreaTuPrimerCluster.png" alt="GKE CreaTuPrimerCluster.png">
+</div>
+</div>
+<div class="paragraph">
+<p>Está formado por 3 nodos de 1vCPU y 1,7 GB de RAM cada uno.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="images/GKE-ClusterCreado.png" alt="GKE ClusterCreado.png">
+</div>
+</div>
+<div class="paragraph">
+<p>Creamos una cuenta de servicio. La denominamos k8s`. Dejamos el resto de valores con los valores predeterminados.</p>
+</div>
+<div class="paragraph">
+<p>Le damos al botón <code>Conectar</code> para obtener las credenciales.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="images/GKE-ConectarCluster.png" alt="GKE ConectarCluster.png">
+</div>
+</div>
+<div class="paragraph">
+<p>Le damos a <code>Ejecutar en Cloud Shell</code>. Nos saldrá un aviso pidiendo autorización. Aceptaremos la autorización. Aparecerá el comando para ejecutarlo.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ gcloud container clusters get-credentials my-first-cluster-1 --zone us-central1-c --project innovati21
+Fetching cluster endpoint and auth data.
+kubeconfig entry generated for my-first-cluster-1</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Descargar gcloud si no se tiene instalado. Seguir esta guía (<a href="https://cloud.google.com/sdk/docs/install" class="bare">https://cloud.google.com/sdk/docs/install</a>). Tras la instalación nos pedirá que conectemos con nuestro usuario y que seleccionemos el proyecto. Así, <code>gcloud</code> quedará conectado a nuestro proyecto en Google Cloud.</p>
+</div>
+<div class="paragraph">
+<p>Obtener las credenciales de acceso al cluster.</p>
+</div>
+<div class="paragraph">
+<p>gcloud container clusters get-credentials CLUSTER_NAME \
+    --zone=COMPUTE_ZONE</p>
+</div>
+<div class="paragraph">
+<p>Despliegue de prueba: Se verán los pods.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/a5685c96a7119908a8d0975eff4907f7/raw/2e7d8d3a6ef64e7937e345b933223dceb2ff69d3/k8s-nginx.yml</code></pre>
+</div>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="images/GKE-nginx.png" alt="GKE nginx.png">
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ kubectl get pods
+NAME                   READY   STATUS    RESTARTS   AGE
+nginx-7bf5f699-k6tsr   1/1     Running   0          6m49s
+nginx-7bf5f699-vfkz8   1/1     Running   0          6m49s</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Con port-forward podremos ver el Nginx.</p>
+</div>
+<div class="sect2">
+<h3 id="trueparada-del-cluster"><a class="anchor" href="#trueparada-del-cluster"></a>7.1. Parada del cluster</h3>
+<div class="paragraph">
+<p>Selecciona, editar, ir a la zona de Grupos de nodos, seleccionar y poner el número de nodos a 0.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="trueampliaci-n-del-cluster-y-autoescalado"><a class="anchor" href="#trueampliaci-n-del-cluster-y-autoescalado"></a>7.2. Ampliación del cluster y autoescalado</h3>
+<div class="paragraph">
+<p>Selecciona, editar, ir a la zona de Grupos de nodos, seleccionar y poner el número de nodos al deseado.</p>
+</div>
+<div class="paragraph">
+<p>Seguir los mismos pasos y activar el autoescalado indicando mínimo y máximo de nodos</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="truehpa-horizontal-pod-autoscaler"><a class="anchor" href="#truehpa-horizontal-pod-autoscaler"></a>8. HPA. Horizontal Pod Autoscaler</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>El Horizontal Pod Autoscaler, o HPA pasa simplificar, escala de forma automática el número de réplicas de un pod en función de la observación de métricas de los pods (p.e. el uso de la CPU).</p>
@@ -2120,117 +2387,90 @@ tennis-api   Deployment/tennis-api   &lt;unknown&gt;/15%   1         10        2
 tennis-app   Deployment/tennis-app   &lt;unknown&gt;/15%   1         10        2          51s</code></pre>
 </div>
 </div>
-<div class="sect2">
-<h3 id="trueprueba-de-stress-de-autoescalado"><a class="anchor" href="#trueprueba-de-stress-de-autoescalado"></a>7.1. Prueba de stress de autoescalado</h3>
-<div class="paragraph">
-<p>To Do</p>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="truegoogle-kubernetes-engine-sin-finalizar"><a class="anchor" href="#truegoogle-kubernetes-engine-sin-finalizar"></a>8. Google Kubernetes Engine (Sin finalizar)</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>Al principio aparece</p>
-</div>
-<div class="imageblock">
+<div class="sidebarblock">
 <div class="content">
-<img src="images/GKE-SinCluster.png" alt="GKE SinCluster.png">
-</div>
+<div class="title">Weavescope</div>
+<div class="paragraph">
+<p><a href="https://www.weave.works/oss/scope/">Weavescope</a> es una herramienta que nos puede ser muy útil a la hora de controlar cómo escala un despliegue. Con Weavescope podemos ver en vivo el número de réplicas de cada pod conforme se va adaptando a la demanda.</p>
 </div>
 <div class="paragraph">
-<p>Seleccionamos <code>Crear cluster</code></p>
-</div>
-<div class="paragraph">
-<p>Aparece Asistente para creación de cluster. Se recomienda usar la opción <code>Mi primer cluster</code> que crea un cluster sencillo para probar.</p>
-</div>
-<div class="imageblock">
-<div class="content">
-<img src="images/GKE-FormularioInicial.png" alt="GKE FormularioInicial.png">
-</div>
-</div>
-<div class="imageblock">
-<div class="content">
-<img src="images/GKE-CreaTuPrimerCluster.png" alt="GKE CreaTuPrimerCluster.png">
-</div>
-</div>
-<div class="paragraph">
-<p>Está formado por 3 nodos de 1vCPU y 1,7 GB de RAM cada uno.</p>
-</div>
-<div class="imageblock">
-<div class="content">
-<img src="images/GKE-ClusterCreado.png" alt="GKE ClusterCreado.png">
-</div>
-</div>
-<div class="paragraph">
-<p>Creamos una cuenta de servicio. La denominamos k8s`. Dejamos el resto de valores con los valores predeterminados.</p>
-</div>
-<div class="paragraph">
-<p>Le damos al botón <code>Conectar</code> para obtener las credenciales.</p>
-</div>
-<div class="imageblock">
-<div class="content">
-<img src="images/GKE-ConectarCluster.png" alt="GKE ConectarCluster.png">
-</div>
-</div>
-<div class="paragraph">
-<p>Le damos a <code>Ejecutar en Cloud Shell</code>. Nos saldrá un aviso pidiendo autorización. Aceptaremos la autorización. Aparecerá el comando para ejecutarlo.</p>
+<p>Weavescope está disponible para su despliegue en Kubernetes. Los comandos siguientes instalan Weavescope en nuestro cluster y redirigen su frontend al puerto 4040 a nuestro equipo local.</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ gcloud container clusters get-credentials my-first-cluster-1 --zone us-central1-c --project innovati21
-Fetching cluster endpoint and auth data.
-kubeconfig entry generated for my-first-cluster-1</code></pre>
+<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ kubectl apply -f "https://cloud.weave.works/k8s/scope.yaml?k8s-version=$(kubectl version | base64 | tr -d '\n')"
+$ kubectl port-forward -n weave "$(kubectl get -n weave pod --selector=weave-scope-component=app -o jsonpath='{.items..metadata.name}')" 4040</code></pre>
 </div>
 </div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="trueprueba-de-stress-de-autoescalado"><a class="anchor" href="#trueprueba-de-stress-de-autoescalado"></a>8.1. Prueba de stress de autoescalado</h3>
 <div class="paragraph">
-<p>Descargar gcloud si no se tiene instalado. Seguir esta guía (<a href="https://cloud.google.com/sdk/docs/install" class="bare">https://cloud.google.com/sdk/docs/install</a>). Tras la instalación nos pedirá que conectemos con nuestro usuario y que seleccionemos el proyecto. Así, <code>gcloud</code> quedará conectado a nuestro proyecto en Google Cloud.</p>
+<p><a href="https://httpd.apache.org/docs/2.4/programs/ab.html">Apache Benchmark</a> es una herramienta útil para realizar pruebas de carga. A continuación se muestra cómo hacer una prueba de carga con</p>
 </div>
-<div class="paragraph">
-<p>Obtener las credenciales de acceso al cluster.</p>
-</div>
-<div class="paragraph">
-<p>gcloud container clusters get-credentials CLUSTER_NAME \
-    --zone=COMPUTE_ZONE</p>
-</div>
-<div class="paragraph">
-<p>Despliegue de prueba: Se verán los pods.</p>
+<div class="ulist">
+<ul>
+<li>
+<p>100.000 peticiones totales</p>
+</li>
+<li>
+<p>100 peticiones simultáneas</p>
+</li>
+</ul>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/a5685c96a7119908a8d0975eff4907f7/raw/2e7d8d3a6ef64e7937e345b933223dceb2ff69d3/k8s-nginx.yml</code></pre>
+<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ ab -n 100000 -c 100 http://&lt;ip-aplicacion&gt;/</code></pre>
+</div>
+</div>
+<div class="sidebarblock">
+<div class="content">
+<div class="title">Instalación de Apache Benchmark</div>
+<div class="paragraph">
+<p>Instala Apache Benchmark en una máquina virtual Ubuntu o en la propia Google Cloud Shell para poder hacer las pruebas.</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>sudo apt-get install apache2-utils</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Este ejemplo ha sido realizado en un cluster GKE. El servicio de la aplicación es de tipo <code>LoadBalancer</code> para poder acceder a la aplicación desde Internet.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>La figura siguiente ilustra varias capturas de cómo ha ido adaptándose el número de pods a la demanda a lo largo de la prueba de carga. Hemos usado colores naranja, rojo y azul para ilustrar el estado de stress y la respuesta elástica con el número de pods en distintos estados que hemos ido capturando durante la prueba de carga.</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="WeaveScopeEvolucion.png" alt="WeaveScopeEvolucion.png">
+</div>
+</div>
+<div class="paragraph">
+<p>La figura siguiente ilustra el estado del objeto HPA con el comando</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ kubectl get horizontalpodautoscalers.autoscaling -n demo --watch</code></pre>
 </div>
 </div>
 <div class="imageblock">
 <div class="content">
-<img src="images/GKE-nginx.png" alt="GKE nginx.png">
+<img src="HPAEvolucion.png" alt="HPAEvolucion.png">
 </div>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ kubectl get pods
-NAME                   READY   STATUS    RESTARTS   AGE
-nginx-7bf5f699-k6tsr   1/1     Running   0          6m49s
-nginx-7bf5f699-vfkz8   1/1     Running   0          6m49s</code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p>Con port-forward podremos ver el Nginx.</p>
-</div>
-<div class="sect2">
-<h3 id="trueparada-del-cluster"><a class="anchor" href="#trueparada-del-cluster"></a>8.1. Parada del cluster</h3>
-<div class="paragraph">
-<p>Selecciona, editar, ir a la zona de Grupos de nodos, seleccionar y poner el número de nodos a 0.</p>
-</div>
-</div>
-<div class="sect2">
-<h3 id="trueampliaci-n-del-cluster-y-autoescalado"><a class="anchor" href="#trueampliaci-n-del-cluster-y-autoescalado"></a>8.2. Ampliación del cluster y autoescalado</h3>
-<div class="paragraph">
-<p>Selecciona, editar, ir a la zona de Grupos de nodos, seleccionar y poner el número de nodos al deseado.</p>
-</div>
-<div class="paragraph">
-<p>Seguir los mismos pasos y activar el autoescalado indicando mínimo y máximo de nodos</p>
 </div>
 </div>
 </div>
@@ -2238,7 +2478,7 @@ nginx-7bf5f699-vfkz8   1/1     Running   0          6m49s</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2020-12-01 14:07:29 CET
+Last updated 2020-12-02 20:14:22 CET
 </div>
 </div>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.9.1/styles/github.min.css">
