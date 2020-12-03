@@ -853,14 +853,623 @@ Recordemos que la aplicación no podía obtener la lista de países que ofrecía
 
 Al desplegar el servicio de la API ya podremos ver que la aplicación ya sí puede acceder a los datos que genera la API.
 
+.Service completo para la aplicación y la API
+****
+El `Service` desplegado anteriormente permite que la aplicación funcione correctamete recuperando datos de la API. Sin embargo, para poder ver la aplicación es necesario hacer un _port-forward_ a unos de los pods de la aplicación. Esto se debe a que el `Deployment` de la aplicación no tiene un `Service`. Hemos definido uno para que la API pueda ser vista por la aplicación, pero la aplicación no puede ser vista. En este caso, el ámbito de visibilidad debe ser Internet, no sólo a nivel de cluster o de nodo.
+
+El ejemplo siguiente muestra un manifiesto completo que incluye dos `Service` (el de la API que ya teníamos y uno nuevo para la aplicación).
+
+[source, yaml]
+----
+apiVersion: v1
+kind: Service 
+metadata:
+  name: tennis-api 
+  namespace: demo 
+spec:
+  type: NodePort <1>
+  ports:
+  - name: http
+    port: 80 
+    targetPort: http
+  selector:
+    app: tennis-api
+---
+apiVersion: v1
+kind: Service 
+metadata:
+  name: tennis-app
+  namespace: demo 
+spec:
+  type: LoadBalancer <2>
+  ports:
+  - name: http
+    port: 80 
+    targetPort: http
+  selector:
+    app: tennis-app
+---
+<1> `Service` de la API de tipo `NodePort` para que sea visto por la aplicación sin exponer la API fuera del cluster
+<2> `Service` de la aplicación de tipo `LoadBalancer` para que pueda recibir una IP accesible desde Internet.
+
+El despliegue se realiza con `kubectl` con el comando siguiente
+
+[source, bash]
+----
+https://gist.githubusercontent.com/ualmtorres/2a0a96749a8b0ced6b8fdd81a9258920/raw/23463255967a4156d1390befdd3bec872ae79bc0/tennis-service.yml
+----
+
+Esto devolverá una IP y la aplicación podrá ser accesible desde fuera del cluster Kubernetes.
+****
+
 ### ConfigMaps
 
-To DO
+Los objetos ConfigMap permiten almacenar datos en forma de pares clave-valor para que puedan usarse posteriormente en despliegues parametrizados y hacerlos más portables.
+
+Usaremos los ConfigMap para almacenar datos no sensibles sobre la configuración. Deben ser datos no sensibles porque los datos se guardan tal cual.
+
+A cada `ConfigMap` le asignaremos un nombre, opcionalmente un namespace, y pares clave-valor.
+
+A continuación se muestra el manifiesto YAML que crea un `ConfigMap initsqlsource` que contiene una propiedad `source` inicializada con un script SQL de inicialización que podrá ser usado más adelante para inicializar una base de datos MySQL.
+
+[source, yaml]
+----
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: initsqlsource
+  namespace: demo
+data:
+  source: https://gist.githubusercontent.com/ualmtorres/eb328b653fcc5964f976b22c320dc10f/raw/448b00c44d7102d66077a393dad555585862f923/init.sql
+----
+
+Desplegaremos el ConfigMap con:
+
+[source, bash]
+----
+$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/21383a48ac1f93f9cb3db3eb61e69a77/raw/5b0722bd0a85f98e18609262d7e210ea73fe5476/initsqlsource-configmap.yml
+----
+
+Podemos obtener los `ConfigMap` definidos con 
+
+[source, bash]
+----
+$ kubectl get configmap -n demo
+
+NAME            DATA   AGE
+initsqlsource   1      102s
+----
+
+Para recuperar los datos del `ConfigMap` usaremos `kubectl describe`
+[source, bash]
+----
+$ kubectl describe configmap initsqlsource -n demo
+
+Name:         initsqlsource
+Namespace:    demo
+Labels:       <none>
+Annotations:  <none>
+
+Data
+====
+source:
+ ----
+https://gist.githubusercontent.com/ualmtorres/eb328b653fcc5964f976b22c320dc10f/raw/448b00c44d7102d66077a393dad555585862f923/init.sql
+Events:  <none>
+----
 
 ### Secrets 
 
-To Do
+Los objetos Secret se usan para almacenar información sensible, como contraseñas, tokens OAuth y claves ssh. Colocar esta información en objetos Secret es más seguro que colocarla en texto plano y legible.
 
+No obstante, los datos de los objetos Secret no están cifrados. Están codificados en base64 y pueden hacerse visibles fácilmente. Sistemas como https://www.vaultproject.io/[Vault] son usados de forma complementaria para aumentar la seguridad de la información que contienen los Secret.
+
+Kubernetes guarda los secretos en base64. Por tanto, los valores que vayamos a almacenar en los pares clave-valor de un secreto tendrán que estar en base64.
+
+Para codificar en base64 el valor password que utilizamos en el ejemplo anterior para contraseña del root, ejecutaremos el comnando siguiente desde la línea de comandos:
+
+    $ echo -n 'secret' | base64
+
+[TIP]
+====
+Los usuarios de Windows ejecutarían este comando en `Git Bash`.
+====
+
+Esto devolverá la cadena `c2VjcmV0`, que corresponde a la cadena `secret` en base64. Este valor codificado será el que usaremos para la creación del `Secret`.
+
+A cada `Secret` le asignaremos un nombre, opcionalmente un namespace, y pares clave-valor.
+
+A continuación crearemos el manifiesto YAML que inicializa un objeto `Secret` que podrá ser usado más adelante para inicializar una contraseña (p.e. para un usuario MySQL).
+
+[source, yaml]
+----
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysqlpassword
+  namespace: demo
+type: Opaque
+data:
+  password: c2VjcmV0
+----
+
+Lanzamos la creación del `Secret` con `kubectl`:
+
+    kubectl apply -f https://gist.githubusercontent.com/ualmtorres/68afc7b823d01b2ef3e2e929473ad4c0/raw/3b8890ad22c4c248ec1b7aaf04327f132589010f/mysqlpassword-secret.yml
+
+Podemos obtener los `Secret` definidos con 
+
+[source, bash]
+----
+$ kubectl get secret -n demo
+
+NAME                  TYPE                                  DATA   AGE
+default-token-55xhz   kubernetes.io/service-account-token   3      2d13h
+mysqlpassword         Opaque                                1      112s
+----
+
+Para recuperar los datos del `Secret` usaremos `kubectl describe`
+
+[source, bash]
+----
+$ kubectl describe secret mysqlpassword -n demo
+
+Name:         mysqlpassword
+Namespace:    demo
+Labels:       <none>
+Annotations:  <none>
+
+Type:  Opaque
+
+Data
+====
+password:  6 bytes
+----
+
+## Almacenamiento básico en volúmenes
+
+El almacenamiento en contenedores es efímero. Una vez que el contenedor es eliminado también son eliminados sus archivos. Pero además, cuando un contenedor falla, `kubelet` lo reiniciará con un estado limpio habiéndose perdido todo lo que había en sus archivos.
+
+Kubernetes cuenta con una gran cantidad de https://kubernetes.io/docs/concepts/storage/volumes/#types-of-volumes[tipos de volúmenes]. Los hay de almacenamiento local, almacenamiento en el sistema de archivos de los nodos de Kubernetes, Ceph, Gluster, NFS y almacenamiento cloud, como en Amazon, Azure, Google Cloud y OpenStack Cinder, por citar algunos. También permite volúmenes `configmap` y `secret`, útiles para el compartir entre pods datos de configuración o información sensible, como contraseñas. En cualquier caso, los volúmenes son montados por los pods y accederían a sus datos.
+
+### Volúmenes `emptyDir`
+
+Se trata de volúmenes que se crean al asignar un pod a un nodo. Su contenido se mantiene en el nodo hasta que el contenedor sea eliminado.
+
+De forma predeterminada, los volúmenes `emptyDir` son almacenados en el medio de almacenamiento prederminado del nodo (HD, SSD, NAS, ...). No obstante, se puede definir este tipo de volúmenes como volátiles configurando la propiedad `emptyDir.medium` como `Memory` y Kubernetes lo montará como un sistema de archivos RAM, lo que puede ser muy útiles para cachés.
+
+Este tipo de contenedores se suele usar para situaciones en las que queremos compartir datos entre varios contenedores en un pod, cachés o archivos de inicialización.
+
+El manifiesto siguiente crea un pod con https://redis.io/[Redis] usando un volumen `emptyDir`. El volumen se monta en el directorio `/data` del contenedor, que es el directorio predeterminado de almacenamiento de la https://hub.docker.com/_/redis[imagen de Redis].
+
+[source, yaml]
+----
+apiVersion: v1
+kind: Pod
+metadata:
+  name: redis
+spec:
+  containers:
+  - name: redis
+    image: redis
+    volumeMounts: <1>
+    - name: redis-storage <2>
+      mountPath: /data <3>
+  volumes: <4>
+  - name: redis-storage <5>
+    emptyDir: {} <6>
+----
+<1> Montaje de un volumen en el contenedor
+<2> Nombre del volumen a montar
+<3> Ruta del contenedor donde se va a montar el volumen
+<4> Definición del volumen
+<5> Nombre asignado al volumen
+<6> Tipo de volumen
+
+A continuación ya podremos desplegar este pod con un volumen `emptyDir` usando `kubectl`
+
+[source, bash]
+----
+$ kubectl apply -f redis.yaml
+----
+
+.Ubicación del volumen en el nodo
+****
+El volumen es creado en un directorio dentro del directorio del pod en el nodo. La ruta es esta
+
+    /var/lib/kubelet/pods/PODUID/volumes/kubernetes.io~empty-dir/VOLUMENAME
+    
+El `uid` lo podemos obtener con un comando como este en `Git Bash`
+
+[source, bash]
+----
+$ kubectl get pods -n demo redis -o yaml | grep uid
+  uid: 295bddba-6b10-4d40-99e3-130e99f2b394
+----
+****
+
+### Volúmenes `hostPath`
+
+Un volumen `hostPath` monta en el contenedor un archivo o un directorio del sistema de archivos del nodo en el que está ejecutándose el pod. 
+
+[NOTE]
+====
+Este tipo de volúmenes no es una solución buena para clusters Kubernetes con varios nodos, ya que no se guardarían los mismos datos en cada nodo. 
+
+No obstante se podrá valorar si https://rsync.samba.org/[rsync] o https://syncthing.net/[Syncthing] ofrecen soporte suficiente para usar volúmenes `hostPath` en clusters con más de un nodo.
+====
+
+El ejemplo siguiente muestra un manifiesto para la creación de un pod con un contenedor Apache que monta un volumen `hostPath`. El contenedor monta ese volumen en la carpeta de publicación del contenedor Apache (`/usr/local/apache2/htdocs/`).
+
+[source, yaml]
+----
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hostPathContainer
+spec:
+  containers:
+  - image: nginx
+    name: nginx-hostPath
+    volumeMounts:
+    - mountPath: /vol-hostPath
+      name: myvolume
+  volumes:
+  - name: myvolume
+    hostPath:
+      path: /data/pv
+----
+
+[NOTE]
+====
+Crear volúmenes `hostPath` es una operación atrevida, ya que estamos accediendo e incluso escribiendo en el sistema de archivos del nodo en el que esté el pod.
+
+Es posible controlar la creación del volumen para montar un archivo o directorio del nodo sólo en aquellos casos en los que previamente exista dicho archivo o directorio. Para ello, tenemos que crear el volumen con `type: Directory`. Esto hará que sólo se cree el pod si existen el directorio previamente en el nodo.
+
+[source, yaml]
+----
+  volumes:
+  - name: myvolume
+    hostPath:
+      type: Directory <1>
+      path: /data/pv
+----
+<1> Sólo se creará el volumen si existe en el nodo el directorio especificado en `path`
+
+Para más información sobre cómo limitar y configurar el uso de `hostPath`, consultar la https://kubernetes.io/docs/concepts/storage/volumes/#hostpath[documentación oficial de volúmenes `hostPath`]
+====
+
+## Init Containers
+
+Existen un tipo especial de contenedores denominados _Init Containers_ que se ejecutan antes que el resto de contenedores de aplicación del pod. Este tipo de contenedores suelen dedicarse a realizar operaciones de incialización que no están presentes en la imagen de los otros contenedores del pod.
+
+Para ilustrar el uso de Init Container supongamos que queremos tener disponibles distintos tipos de bases de datos MySQL para pruebas en desarrollo.. En función del proyecto en el que estemos trabajando queremos tener disponible una base de datos u otra (p.e. recursos humanos, espacios, expedientes, préstamos, ...). Para ello, contaremos con varios scripts diferentes de inicialización de los distintos tipos de bases de datos que queremos configurar.
+
+Para llevar a cabo ese caso práctico contaremos con:
+
+* URL donde se encuentra el script de inicialización de la base de datos.
+* ConfigMap que configura la URL del script con el que se va a inicializar la base de datos.
+* Secret el que se almacena la contraseña del usuario `root`.
+* Init Container que inicializa una imagen `busybox` con un volumen donde descarga el script SQL que inicializa la BD. La URL de descarga del script la toma del ConfigMap. El script SQL se descarga con el nombre `init.sql` en el directorio `/docker-entrypoint-initdb.d` para que sirva como script de inicialización del contenedor MySQL.
+
++ 
+[NOTE]
+====
+La imagen `busybox` contiene gran cantidad de utilidades Linux incorporadas y nos va a ser muy útil para realizar la tarea de inicialización de la base de datos en su contenedor compañero de MySQL
+====
+
+* Contenedor que monta el volumen que ha inicializado el Init Container con el script SQL. Dicho volumen es montando en el directorio `/docker-entrypoint-initdb.d` de la imagen MySQL. Como el script `init.sql` está situado en el directorio `/docker-entrypoint-initdb.d`, al arrancar por primera vez el contenedor MySQL, se inicializará el contenedor con la base de datos elegida.
+
+Esta configuración con Init Containers permite la configuración a medida y sobre la marcha de una imagen MySQL sin necesidad de tener disponibles diferentes imágenes MySQL, cada una con su propia base de datos. En su puesto, lo que hacemos es cambiar en el ConfigMap la URL del script que inicializará una nueva base de datos. Con esto podremos tener todas las bases de datos diferentes que queramos con una única imagen MySQL.
+
+A continuación se muestra el manifiesto YAML que crea el ConfigMap que contiene el script SQL de inicialización de la base de datos. Este ConfigMap ya lo creamos cuando tratamos los ConfigMap.
+
+ConfigMap
+[source, yaml]
+----
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: initsqlsource
+data:
+  source: https://gist.githubusercontent.com/ualmtorres/eb328b653fcc5964f976b22c320dc10f/raw/448b00c44d7102d66077a393dad555585862f923/init.sql
+----
+
+Desplegaremos el ConfigMap con:
+
+[source, bash]
+----
+$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/21383a48ac1f93f9cb3db3eb61e69a77/raw/5b0722bd0a85f98e18609262d7e210ea73fe5476/initsqlsource-configmap.yml
+----
+
+También contaremos con un objeto Secret para almacenar la contraseña del usuario root. Este sería su manifiesto YAML. Este Secret ya lo creamos cuando tratamos los Secret.
+
+[source, yaml]
+----
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysqlpassword
+type: Opaque
+data:
+  password: c2VjcmV0
+----
+
+Desplegaremos el Secret con:
+
+[source, bash]
+----
+$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/68afc7b823d01b2ef3e2e929473ad4c0/raw/3b8890ad22c4c248ec1b7aaf04327f132589010f/mysqlpassword-secret.yml
+----
+
+Por último, crearemos el pod que incluye el contenedor MySQL y el Init Container que lo inicializa. El pod contiene un volumen que comparten ambos contenedores. El Init Container descarga el script SQL de inicialización en el volumen. Posteriormente, el contenedor MySQL monta ese volumen en el directorio de scripts de inicialización de forma que al arrancar por primera vez inicialice la base de datos con el script descargado por el Init Container.
+
+Este sería el manifiesto YAML del pod que incluye el Init Container, el contenedor MySQL y el volumen compartido por los dos contenedores.
+
+[source, yaml]
+----
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: demo
+spec:
+  selector: 
+    matchLabels:
+     app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql <1>
+        image: mysql:5.7
+        env:
+        - name: MYSQL_ROOT_PASSWORD <2>
+          valueFrom: 
+            secretKeyRef:
+              name: mysqlpassword
+              key: password
+        ports:
+        - containerPort: 3306
+        volumeMounts: <3>
+        - name: workdir
+          mountPath: /docker-entrypoint-initdb.d
+      initContainers:
+      - name: install <4>
+        image: busybox
+        env:
+        - name: SQLSOURCE <5>
+          valueFrom:
+            configMapKeyRef:
+              name: initsqlsource
+              key: source
+        command: <6>
+        - wget
+        - "-O"
+        - "/work-dir/init.sql"
+        args: ["$(SQLSOURCE)"]
+        volumeMounts: <7>
+        - name: workdir
+          mountPath: "/work-dir"
+      dnsPolicy: Default
+      volumes: <8>
+      - name: workdir
+        emptyDir: {}
+----
+<1> Contenedor MySQL
+<2> Inicialización de la variable de entorno con el Secret que contiene la contraseña del usuario root
+<3> Montar el volumen `workdir`, definido al final del script, en el directorio `/docker-entrypoint-initdb.d` del contenedor
+<4> Contenedor de inicialización
+<5> Inicialización de la variable de entorno con el ConfigMap que contiene la URL con el script SQL que inicializará la base de datos
+<6> Comando de inicialización para ejecutar al crear el Init Container
+<7> Montar el volumen `workdir` en el directorio `/work-dir` del InitContainer
+<8> Volumen que almacenará el script de inicialización de la base de datos
+
+[NOTE]
+====
+El volumen `workdir` se crea del tipo `emptyDir` porque su único propósito es almacenar el script de inicialización de la base de datos del contenedor MySQL en su primer arranque. Una vez hecha esta función, ya no es necesario, y no está destinado a guardar datos que se quieran persistir tras la finalización del contenedor MySQL.
+====
+
+Lanzamos el despliegue del Deployment:
+
+[source, bash]
+----
+$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/b4d7aa8c9e62ccdc0e833c699630215f/raw/923d9d870a8cd14cf0b407e8db863e306bd7d608/mysql-secret-configmap.yml
+----
+
+Tras su creación, haremos un _port forward_ al pod creado para ver que funciona correctamete y que se ha inicializado la base de datos SG:
+
+[source, bash]
+----
+$ kubectl port-forward <pod> -n demo 3306:3306
+----
+
+Por último, abrimos una sesión con un cliente MySQL (usuario: `root`, password: `secret`). Dado que tenemos los puertos redirigidos, las peticiones al puerto 3306 de nuestro equipo irán al puerto 3306 del contenedor. Podremos comprobar que el contenedor tiene inicializada una base de datos, la base de datos que inicializa el script almacenado en la URL especificada en el ConfigMap.
+
+image::images/MySQLSG.png[]
+
+De esta forma hemos creado un pod que incluye dos contenedores: uno para una base de datos MySQL y otro con un _init container_ que inicializa MySQL con una base de datos de artículos deportivos (`SG`). Ambos contenedores comparten un volumen común, que es el lugar donde el _init container_ descarga el script de inicialización de la base de datos, dejándolo preparado para el contenedor MySQL.
+
+Para aprovechar el ejemplo que hemos usado para inicializar una base de datos con un _init container_ vamos a crear:
+
+* Un manifiesto de `Deployment` con una API que interactúe con la base de datos y una aplicación que muestre un catálogo de artículos deportivos.
+* Un manifiesto de `Service` para poder usar los despliegues realizados.
+
+### Despliegue de API y aplicación
+
+[source, yaml]
+----
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: demo
+spec:
+  selector:
+    matchLabels:
+     app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql 
+        image: mysql:5.7
+        env:
+        - name: MYSQL_ROOT_PASSWORD 
+          valueFrom:
+            secretKeyRef:
+              name: mysqlpassword
+              key: password
+        ports:
+        - containerPort: 3306
+        volumeMounts: 
+        - name: workdir
+          mountPath: /docker-entrypoint-initdb.d
+      initContainers:
+      - name: install 
+        image: busybox
+        env:
+        - name: SQLSOURCE 
+          valueFrom:
+            configMapKeyRef:
+              name: initsqlsource
+              key: source
+        command: 
+        - wget
+        - "-O"
+        - "/work-dir/init.sql"
+        args: ["$(SQLSOURCE)"]
+        volumeMounts: 
+        - name: workdir
+          mountPath: "/work-dir"
+      dnsPolicy: Default
+      volumes: 
+      - name: workdir
+        emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sgapi
+  namespace: demo
+  labels:
+    app: sgapi
+spec:
+  revisionHistoryLimit: 2
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: sgapi
+  template:
+    metadata:
+      labels:
+        app: sgapi
+    spec:
+      containers:
+        - name: sgapi
+          image: ualmtorres/sgapi:v0.1
+          ports:
+            - name: http
+              containerPort: 80
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sgapp
+  namespace: demo
+  labels:
+    app: sgapp
+spec:
+  revisionHistoryLimit: 2
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: sgapp
+  template:
+    metadata:
+      labels:
+        app: sgapp
+    spec:
+      containers:
+        - name: sgapp
+          image: ualmtorres/sgapp:v0.1
+          ports:
+            - name: http
+              containerPort: 80
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+----
+
+Lo desplegamos con `kubectl` con este comando
+
+    $ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/134aac9de8925b588e23f7866ee1322f/raw/8818106443755dc25389953ffb428d4005b294ce/sg-deployment.yml
+    
+### Despliegue los servicios
+
+[source, yaml]
+----
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: demo
+spec:
+  type: NodePort
+  ports:
+    - port: 3306
+  selector:
+    app: mysql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sgapi
+  namespace: demo
+spec:
+  type: NodePort
+  ports:
+    - port: 80
+  selector:
+    app: sgapi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sgapp
+  namespace: demo
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+  selector:
+    app: sgapp
+----
+
+Lo desplegamos con `kubectl` con este comando
+
+    $ kubectl -f apply https://gist.githubusercontent.com/ualmtorres/592080324eb3ec138ef8d7038195fad3/raw/778689cf2ab7d9de3de93371ccd5203fad69cfe3/sg-service.yml
+
+El proveedor cloud nos dará una IP y el resultado será similar al de la figura siguiente.
+
+image::images/SGApp.png[]
 
 ## Google Kubernetes Engine (Sin finalizar)
 
