@@ -462,18 +462,21 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <li><a href="#trueinit-containers">8. Init Containers</a>
 <ul class="sectlevel2">
 <li><a href="#truedespliegue-de-api-y-aplicaci-n">8.1. Despliegue de API y aplicación</a></li>
-<li><a href="#truedespliegue-los-servicios">8.2. Despliegue los servicios</a></li>
+<li><a href="#truedespliegue-de-servicios">8.2. Despliegue de servicios</a></li>
 </ul>
 </li>
-<li><a href="#truegoogle-kubernetes-engine-sin-finalizar">9. Google Kubernetes Engine (Sin finalizar)</a>
+<li><a href="#truegoogle-kubernetes-engine">9. Google Kubernetes Engine</a>
 <ul class="sectlevel2">
-<li><a href="#trueparada-del-cluster">9.1. Parada del cluster</a></li>
-<li><a href="#trueampliaci-n-del-cluster-y-autoescalado">9.2. Ampliación del cluster y autoescalado</a></li>
+<li><a href="#truecreaci-n-de-un-cluster-kubernetes-en-gke">9.1. Creación de un cluster Kubernetes en GKE</a></li>
+<li><a href="#trueinteracci-n-con-cluster-gke-desde-code-kubectl-code-local">9.2. Interacción con cluster GKE desde <code>kubectl</code> local.</a></li>
+<li><a href="#trueparada-del-cluster">9.3. Parada del cluster</a></li>
+<li><a href="#trueampliaci-n-del-cluster-y-autoescalado">9.4. Ampliación del cluster y autoescalado</a></li>
 </ul>
 </li>
-<li><a href="#truehpa-horizontal-pod-autoscaler">10. HPA. Horizontal Pod Autoscaler</a>
+<li><a href="#truecontextos">10. Contextos</a></li>
+<li><a href="#truehpa-horizontal-pod-autoscaler">11. HPA. Horizontal Pod Autoscaler</a>
 <ul class="sectlevel2">
-<li><a href="#trueprueba-de-stress-de-autoescalado">10.1. Prueba de stress de autoescalado</a></li>
+<li><a href="#trueprueba-de-stress-de-autoescalado">11.1. Prueba de stress de autoescalado</a></li>
 </ul>
 </li>
 </ul>
@@ -2026,23 +2029,31 @@ spec:
     port: 80
     targetPort: http
   selector:
-    app: tennis-app
----
-&lt;1&gt; `Service` de la API de tipo `NodePort` para que sea visto por la aplicación sin exponer la API fuera del cluster
-&lt;2&gt; `Service` de la aplicación de tipo `LoadBalancer` para que pueda recibir una IP accesible desde Internet.
-
-El despliegue se realiza con `kubectl` con el comando siguiente
-
-[source, bash]</code></pre>
+    app: tennis-app</code></pre>
 </div>
+</div>
+<div class="colist arabic">
+<table>
+<tr>
+<td><i class="conum" data-value="1"></i><b>1</b></td>
+<td><code>Service</code> de la API de tipo <code>NodePort</code> para que sea visto por la aplicación sin exponer la API fuera del cluster</td>
+</tr>
+<tr>
+<td><i class="conum" data-value="2"></i><b>2</b></td>
+<td><code>Service</code> de la aplicación de tipo <code>LoadBalancer</code> para que pueda recibir una IP accesible desde Internet.</td>
+</tr>
+</table>
 </div>
 <div class="paragraph">
-<p><a href="https://gist.githubusercontent.com/ualmtorres/2a0a96749a8b0ced6b8fdd81a9258920/raw/23463255967a4156d1390befdd3bec872ae79bc0/tennis-service.yml" class="bare">https://gist.githubusercontent.com/ualmtorres/2a0a96749a8b0ced6b8fdd81a9258920/raw/23463255967a4156d1390befdd3bec872ae79bc0/tennis-service.yml</a></p>
+<p>El despliegue se realiza con <code>kubectl</code> con el comando siguiente</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre>Esto devolverá una IP y la aplicación podrá ser accesible desde fuera del cluster Kubernetes.</pre>
+<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">https://gist.githubusercontent.com/ualmtorres/2a0a96749a8b0ced6b8fdd81a9258920/raw/23463255967a4156d1390befdd3bec872ae79bc0/tennis-service.yml</code></pre>
 </div>
+</div>
+<div class="paragraph">
+<p>Esto devolverá una IP y la aplicación podrá ser accesible desde fuera del cluster Kubernetes.</p>
 </div>
 </div>
 </div>
@@ -2283,7 +2294,7 @@ spec:
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ kubectl apply -f redis.yaml</code></pre>
+<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/8b07222dab628fb2e4ac7ef01ade45ad/raw/61535f51d438c1bb2ab0fac8a50dc9772e27fb96/redis-with-emptydir.yml</code></pre>
 </div>
 </div>
 <div class="sidebarblock">
@@ -2332,25 +2343,35 @@ spec:
 </table>
 </div>
 <div class="paragraph">
-<p>El ejemplo siguiente muestra un manifiesto para la creación de un pod con un contenedor Apache que monta un volumen <code>hostPath</code>. El contenedor monta ese volumen en la carpeta de publicación del contenedor Apache (<code>/usr/local/apache2/htdocs/</code>).</p>
+<p>El ejemplo siguiente muestra un manifiesto para la creación de un pod con un contenedor Apache que monta un volumen <code>hostPath</code>. El contenedor monta ese volumen (<code>/var/local/apache-vol</code>) en la carpeta de publicación del contenedor Apache (<code>/usr/local/apache2/htdocs/</code>).</p>
 </div>
 <div class="listingblock">
 <div class="content">
 <pre class="highlightjs highlight"><code class="language-yaml" data-lang="yaml">apiVersion: v1
 kind: Pod
 metadata:
-  name: hostPathContainer
+  name: apache-hostpath
+  namespace: demo
 spec:
   containers:
-  - image: nginx
-    name: nginx-hostPath
+  - image: httpd
+    name: apache-hostpath
     volumeMounts:
-    - mountPath: /vol-hostPath
+    - mountPath: /usr/local/apache2/htdocs/
       name: myvolume
   volumes:
   - name: myvolume
     hostPath:
-      path: /data/pv</code></pre>
+      path: /var/local/apache-vol
+      type: DirectoryOrCreate</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>A continuación ya podremos desplegar este pod con un volumen <code>hostPath</code> usando <code>kubectl</code></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/6d69e5cfcecea5a1376066282907b865/raw/5267db3c6e38bc31b6284f690b6a2a51c9a6c56f/apache-hostpath.yml</pre>
 </div>
 </div>
 <div class="admonitionblock note">
@@ -2372,7 +2393,7 @@ spec:
   - name: myvolume
     hostPath:
       type: Directory <i class="conum" data-value="1"></i><b>(1)</b>
-      path: /data/pv</code></pre>
+      path: /var/local/apache-vol</code></pre>
 </div>
 </div>
 <div class="colist arabic">
@@ -2397,7 +2418,7 @@ spec:
 <h2 id="trueinit-containers"><a class="anchor" href="#trueinit-containers"></a>8. Init Containers</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Existen un tipo especial de contenedores denominados <em>Init Containers</em> que se ejecutan antes que el resto de contenedores de aplicación del pod. Este tipo de contenedores suelen dedicarse a realizar operaciones de incialización que no están presentes en la imagen de los otros contenedores del pod.</p>
+<p>Existen un tipo especial de contenedores denominados <em>Init Containers</em> que se ejecutan antes que el resto de contenedores de aplicación del pod. Este tipo de contenedores suelen dedicarse a realizar operaciones de inicialización que no están presentes en la imagen de los otros contenedores del pod.</p>
 </div>
 <div class="paragraph">
 <p>Para ilustrar el uso de Init Container supongamos que queremos tener disponibles distintos tipos de bases de datos MySQL para pruebas en desarrollo.. En función del proyecto en el que estemos trabajando queremos tener disponible una base de datos u otra (p.e. recursos humanos, espacios, expedientes, préstamos, &#8230;&#8203;). Para ello, contaremos con varios scripts diferentes de inicialización de los distintos tipos de bases de datos que queremos configurar.</p>
@@ -2767,7 +2788,7 @@ spec:
 </div>
 </div>
 <div class="sect2">
-<h3 id="truedespliegue-los-servicios"><a class="anchor" href="#truedespliegue-los-servicios"></a>8.2. Despliegue los servicios</h3>
+<h3 id="truedespliegue-de-servicios"><a class="anchor" href="#truedespliegue-de-servicios"></a>8.2. Despliegue de servicios</h3>
 <div class="listingblock">
 <div class="content">
 <pre class="highlightjs highlight"><code class="language-yaml" data-lang="yaml">apiVersion: v1
@@ -2827,10 +2848,24 @@ spec:
 </div>
 </div>
 <div class="sect1">
-<h2 id="truegoogle-kubernetes-engine-sin-finalizar"><a class="anchor" href="#truegoogle-kubernetes-engine-sin-finalizar"></a>9. Google Kubernetes Engine (Sin finalizar)</h2>
+<h2 id="truegoogle-kubernetes-engine"><a class="anchor" href="#truegoogle-kubernetes-engine"></a>9. Google Kubernetes Engine</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Al principio aparece</p>
+<p>Google Kubernetes Engine es un servicio gestionado de Kubernetes ofrecido por Google. Ofrece autoescalado horizontal y vertical de pods y nodos.</p>
+</div>
+<div class="paragraph">
+<p>Un cluster GKE consiste en un grupo de instancias de Google Compute Engine, aunque realmente se pueden tener varios grupos de nodos (zonas diferentes, capacidades diferentes, &#8230;&#8203;).</p>
+</div>
+<div class="paragraph">
+<p>Todo lo expuesto anteriormente en este tutorial es perfectamente aplicable a clusters GKE, ya que se ha trabajado con Kubernetes. Lo que veremos a continuación es cómo crear un cluster GKE y cómo configurar <code>kubectl</code> para conectarlo al cluster creado en GKE.</p>
+</div>
+<div class="sect2">
+<h3 id="truecreaci-n-de-un-cluster-kubernetes-en-gke"><a class="anchor" href="#truecreaci-n-de-un-cluster-kubernetes-en-gke"></a>9.1. Creación de un cluster Kubernetes en GKE</h3>
+<div class="paragraph">
+<p>Las operaciones con GKE se encuentran en el Menú de navegación en <code>Compute | Kubernetes Engine</code>. Desde ahí podremos gestionar clusters, Deployments, Services, <em>volume claims</em>, ConfigMaps y Secrets.</p>
+</div>
+<div class="paragraph">
+<p>Para crear un cluster, en <code>Kubernetes Engine | Clusters</code> aparecerá un cuadro indicando la posibilidad de crear un nuevo cluster.</p>
 </div>
 <div class="imageblock">
 <div class="content">
@@ -2838,15 +2873,15 @@ spec:
 </div>
 </div>
 <div class="paragraph">
-<p>Seleccionamos <code>Crear cluster</code></p>
-</div>
-<div class="paragraph">
-<p>Aparece Asistente para creación de cluster. Se recomienda usar la opción <code>Mi primer cluster</code> que crea un cluster sencillo para probar.</p>
+<p>Seleccionamos <code>Crear cluster</code>. Aparece el Asistente para la creación de clusters. Para este tutorial se recomienda usar la opción <code>Mi primer cluster</code> que aparece en la derecha. Esta crea un cluster sencillo para probar.</p>
 </div>
 <div class="imageblock">
 <div class="content">
 <img src="images/GKE-FormularioInicial.png" alt="GKE FormularioInicial.png">
 </div>
+</div>
+<div class="paragraph">
+<p>Aparecerá un cuadro informando de los pasos que se van a realizar en el proceso de creación del cluster. Se trata de un cluster de recursos reducidos formado por 3 nodos de 1vCPU y 1,7 GB de RAM cada uno. Las funcionalidades también son reducidas (p.e. tiene deshabilitado el autoescalado de nodos de forma predeterminada).</p>
 </div>
 <div class="imageblock">
 <div class="content">
@@ -2854,18 +2889,43 @@ spec:
 </div>
 </div>
 <div class="paragraph">
-<p>Está formado por 3 nodos de 1vCPU y 1,7 GB de RAM cada uno.</p>
+<p>Tras pulsar el botón de creación del cluster y tras un periodo de tiempo el cluster estará creado.</p>
 </div>
 <div class="imageblock">
 <div class="content">
 <img src="images/GKE-ClusterCreado.png" alt="GKE ClusterCreado.png">
 </div>
 </div>
+</div>
+<div class="sect2">
+<h3 id="trueinteracci-n-con-cluster-gke-desde-code-kubectl-code-local"><a class="anchor" href="#trueinteracci-n-con-cluster-gke-desde-code-kubectl-code-local"></a>9.2. Interacción con cluster GKE desde <code>kubectl</code> local.</h3>
 <div class="paragraph">
-<p>Creamos una cuenta de servicio. La denominamos k8s`. Dejamos el resto de valores con los valores predeterminados.</p>
+<p>Pese a que Google Cloud Shell cuente con <code>kubectl</code> queremos operar con el cluster creado desde nuestro equipo ya que en él será donde tengamos los archivos de manifiesto que usaremos para configurar los despliegues en el cluster.</p>
+</div>
+<div class="sidebarblock">
+<div class="content">
+<div class="title">Descarga de <code>gcloud</code></div>
+<div class="paragraph">
+<p>Descargar <code>gcloud</code> si no se tiene instalado. Seguir esta guía (<a href="https://cloud.google.com/sdk/docs/install" class="bare">https://cloud.google.com/sdk/docs/install</a>). Tras la instalación nos pedirá que conectemos con nuestro usuario y que seleccionemos el proyecto. Así, tendremos disponible el SDK de Google Cloud y quedaremos conectado a nuestro proyecto en Google Cloud.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Si ya se cuenta con <code>gcloud</code> instalado y no se tiene configurado contra el proyecto de Google Cloud ejecutar <code>gcloud init</code>. Si no existe una configuración creada nos pedirá que conectemos con nuestro usuario y que seleccionemos el proyecto.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</div>
 </div>
 <div class="paragraph">
-<p>Le damos al botón <code>Conectar</code> para obtener las credenciales.</p>
+<p>Para obtener las creadenciales de acceso al cluster, en la lista de clusters (<code>Kubernetes Engine | Clusters</code>) le damos al botón <code>Conectar</code> de nuestro cluster para obtener las credenciales. Nos aparecerá un cuadro de diálogo para obtener las credenciales a incluir en el archivo de configuración de <code>kubectl</code> (<code>~/.kube/config</code>). la figura muestra el comando que hay que ejecutar para configurar <code>kubectl</code> contra nuestro cluster. Copiar ese comando y ejecutarlo en nuestra terminal. No lo ejecutaremos en Cloud Shell porque lo que queremos configurar es nuestro <code>kubectl</code>, no el de Cloud Shell.</p>
 </div>
 <div class="imageblock">
 <div class="content">
@@ -2873,7 +2933,15 @@ spec:
 </div>
 </div>
 <div class="paragraph">
-<p>Le damos a <code>Ejecutar en Cloud Shell</code>. Nos saldrá un aviso pidiendo autorización. Aceptaremos la autorización. Aparecerá el comando para ejecutarlo.</p>
+<p>La obtención de las credenciales sigue este patrón</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>gcloud container clusters get-credentials &lt;cluster-name&gt; --zone=&lt;compute-zone&gt;</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>A continuación se muestra un ejemplo con la respuesta que devuelve.</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -2883,27 +2951,26 @@ kubeconfig entry generated for my-first-cluster-1</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Descargar gcloud si no se tiene instalado. Seguir esta guía (<a href="https://cloud.google.com/sdk/docs/install" class="bare">https://cloud.google.com/sdk/docs/install</a>). Tras la instalación nos pedirá que conectemos con nuestro usuario y que seleccionemos el proyecto. Así, <code>gcloud</code> quedará conectado a nuestro proyecto en Google Cloud.</p>
+<p>En ese momento, <code>kubectl</code> ha quedado configurado y conectado al cluster GKE.</p>
 </div>
 <div class="paragraph">
-<p>Obtener las credenciales de acceso al cluster.</p>
-</div>
-<div class="paragraph">
-<p>gcloud container clusters get-credentials CLUSTER_NAME \
-    --zone=COMPUTE_ZONE</p>
-</div>
-<div class="paragraph">
-<p>Despliegue de prueba: Se verán los pods.</p>
+<p>Para comprobarlo, haremos un despliegue de prueba:</p>
 </div>
 <div class="listingblock">
 <div class="content">
 <pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/a5685c96a7119908a8d0975eff4907f7/raw/2e7d8d3a6ef64e7937e345b933223dceb2ff69d3/k8s-nginx.yml</code></pre>
 </div>
 </div>
+<div class="paragraph">
+<p>En el menú <code>Cargas de trabajo</code> podremos ver el despliegue realizado.</p>
+</div>
 <div class="imageblock">
 <div class="content">
 <img src="images/GKE-nginx.png" alt="GKE nginx.png">
 </div>
+</div>
+<div class="paragraph">
+<p>Para ver los pods con <code>kubectl</code> ejecutaríamos</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -2914,16 +2981,22 @@ nginx-7bf5f699-vfkz8   1/1     Running   0          6m49s</code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Con port-forward podremos ver el Nginx.</p>
+<p>Para ver alguno de los Nginx funcionando haríamos un <em>port forward</em></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>$ kubectl port-forward nginx-7bf5f699-k6tsr 80:80</pre>
+</div>
+</div>
 </div>
 <div class="sect2">
-<h3 id="trueparada-del-cluster"><a class="anchor" href="#trueparada-del-cluster"></a>9.1. Parada del cluster</h3>
+<h3 id="trueparada-del-cluster"><a class="anchor" href="#trueparada-del-cluster"></a>9.3. Parada del cluster</h3>
 <div class="paragraph">
 <p>Selecciona, editar, ir a la zona de Grupos de nodos, seleccionar y poner el número de nodos a 0.</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="trueampliaci-n-del-cluster-y-autoescalado"><a class="anchor" href="#trueampliaci-n-del-cluster-y-autoescalado"></a>9.2. Ampliación del cluster y autoescalado</h3>
+<h3 id="trueampliaci-n-del-cluster-y-autoescalado"><a class="anchor" href="#trueampliaci-n-del-cluster-y-autoescalado"></a>9.4. Ampliación del cluster y autoescalado</h3>
 <div class="paragraph">
 <p>Selecciona, editar, ir a la zona de Grupos de nodos, seleccionar y poner el número de nodos al deseado.</p>
 </div>
@@ -2934,7 +3007,48 @@ nginx-7bf5f699-vfkz8   1/1     Running   0          6m49s</code></pre>
 </div>
 </div>
 <div class="sect1">
-<h2 id="truehpa-horizontal-pod-autoscaler"><a class="anchor" href="#truehpa-horizontal-pod-autoscaler"></a>10. HPA. Horizontal Pod Autoscaler</h2>
+<h2 id="truecontextos"><a class="anchor" href="#truecontextos"></a>10. Contextos</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>El archivo <code>kubeconfig</code> organiza información de diferentes clusters. Básicamente incluye datos de conexión de clusters y usuarios, y les asigna una alias. Usaremos esos alias para que <code>kubectl</code> quede conectado a un cluster o a otro.</p>
+</div>
+<div class="paragraph">
+<p>Obtener los contextos</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ kubectl config get-contexts
+CURRENT   NAME            CLUSTER         AUTHINFO     NAMESPACE
+*         minikube        minikube        minikube     default
+          produccion-ci   produccion-ci   user-mzmh8   mtorres
+...</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Usar un contexto</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ kubectl config use-context produccion-ci
+
+Switched to context "produccion-ci".</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Si ahora consultamos los contextos, veremos que el contexto activo es <code>produccion-ci</code>. Por tanto, todas las operaciones que hagamos con <code>kubectl</code> a partir de ahora se dirigirán contra ese contexto (cluster-usuario-namespace).</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ kubectl config get-contexts
+CURRENT   NAME            CLUSTER         AUTHINFO     NAMESPACE
+          minikube        minikube        minikube     default
+*         produccion-ci   produccion-ci   user-mzmh8   mtorres</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="truehpa-horizontal-pod-autoscaler"><a class="anchor" href="#truehpa-horizontal-pod-autoscaler"></a>11. HPA. Horizontal Pod Autoscaler</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>El Horizontal Pod Autoscaler, o HPA pasa simplificar, escala de forma automática el número de réplicas de un pod en función de la observación de métricas de los pods (p.e. el uso de la CPU).</p>
@@ -3238,7 +3352,7 @@ $ kubectl port-forward -n weave "$(kubectl get -n weave pod --selector=weave-sco
 </div>
 </div>
 <div class="sect2">
-<h3 id="trueprueba-de-stress-de-autoescalado"><a class="anchor" href="#trueprueba-de-stress-de-autoescalado"></a>10.1. Prueba de stress de autoescalado</h3>
+<h3 id="trueprueba-de-stress-de-autoescalado"><a class="anchor" href="#trueprueba-de-stress-de-autoescalado"></a>11.1. Prueba de stress de autoescalado</h3>
 <div class="paragraph">
 <p><a href="https://httpd.apache.org/docs/2.4/programs/ab.html">Apache Benchmark</a> es una herramienta útil para realizar pruebas de carga. A continuación se muestra cómo hacer una prueba de carga con</p>
 </div>
@@ -3311,7 +3425,7 @@ $ kubectl port-forward -n weave "$(kubectl get -n weave pod --selector=weave-sco
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2020-12-03 19:19:01 CET
+Last updated 2020-12-04 14:48:32 CET
 </div>
 </div>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.9.1/styles/github.min.css">

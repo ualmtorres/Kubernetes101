@@ -888,7 +888,7 @@ spec:
     targetPort: http
   selector:
     app: tennis-app
----
+----
 <1> `Service` de la API de tipo `NodePort` para que sea visto por la aplicación sin exponer la API fuera del cluster
 <2> `Service` de la aplicación de tipo `LoadBalancer` para que pueda recibir una IP accesible desde Internet.
 
@@ -1070,7 +1070,7 @@ A continuación ya podremos desplegar este pod con un volumen `emptyDir` usando 
 
 [source, bash]
 ----
-$ kubectl apply -f redis.yaml
+$ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/8b07222dab628fb2e4ac7ef01ade45ad/raw/61535f51d438c1bb2ab0fac8a50dc9772e27fb96/redis-with-emptydir.yml
 ----
 
 .Ubicación del volumen en el nodo
@@ -1099,26 +1099,32 @@ Este tipo de volúmenes no es una solución buena para clusters Kubernetes con v
 No obstante se podrá valorar si https://rsync.samba.org/[rsync] o https://syncthing.net/[Syncthing] ofrecen soporte suficiente para usar volúmenes `hostPath` en clusters con más de un nodo.
 ====
 
-El ejemplo siguiente muestra un manifiesto para la creación de un pod con un contenedor Apache que monta un volumen `hostPath`. El contenedor monta ese volumen en la carpeta de publicación del contenedor Apache (`/usr/local/apache2/htdocs/`).
+El ejemplo siguiente muestra un manifiesto para la creación de un pod con un contenedor Apache que monta un volumen `hostPath`. El contenedor monta ese volumen (`/var/local/apache-vol`) en la carpeta de publicación del contenedor Apache (`/usr/local/apache2/htdocs/`).
 
 [source, yaml]
 ----
 apiVersion: v1
 kind: Pod
 metadata:
-  name: hostPathContainer
+  name: apache-hostpath
+  namespace: demo
 spec:
   containers:
-  - image: nginx
-    name: nginx-hostPath
+  - image: httpd
+    name: apache-hostpath
     volumeMounts:
-    - mountPath: /vol-hostPath
+    - mountPath: /usr/local/apache2/htdocs/
       name: myvolume
   volumes:
   - name: myvolume
     hostPath:
-      path: /data/pv
+      path: /var/local/apache-vol
+      type: DirectoryOrCreate
 ----
+
+A continuación ya podremos desplegar este pod con un volumen `hostPath` usando `kubectl`
+
+    $ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/6d69e5cfcecea5a1376066282907b865/raw/5267db3c6e38bc31b6284f690b6a2a51c9a6c56f/apache-hostpath.yml
 
 [NOTE]
 ====
@@ -1132,7 +1138,7 @@ Es posible controlar la creación del volumen para montar un archivo o directori
   - name: myvolume
     hostPath:
       type: Directory <1>
-      path: /data/pv
+      path: /var/local/apache-vol
 ----
 <1> Sólo se creará el volumen si existe en el nodo el directorio especificado en `path`
 
@@ -1141,7 +1147,7 @@ Para más información sobre cómo limitar y configurar el uso de `hostPath`, co
 
 ## Init Containers
 
-Existen un tipo especial de contenedores denominados _Init Containers_ que se ejecutan antes que el resto de contenedores de aplicación del pod. Este tipo de contenedores suelen dedicarse a realizar operaciones de incialización que no están presentes en la imagen de los otros contenedores del pod.
+Existen un tipo especial de contenedores denominados _Init Containers_ que se ejecutan antes que el resto de contenedores de aplicación del pod. Este tipo de contenedores suelen dedicarse a realizar operaciones de inicialización que no están presentes en la imagen de los otros contenedores del pod.
 
 Para ilustrar el uso de Init Container supongamos que queremos tener disponibles distintos tipos de bases de datos MySQL para pruebas en desarrollo.. En función del proyecto en el que estemos trabajando queremos tener disponible una base de datos u otra (p.e. recursos humanos, espacios, expedientes, préstamos, ...). Para ello, contaremos con varios scripts diferentes de inicialización de los distintos tipos de bases de datos que queremos configurar.
 
@@ -1422,7 +1428,7 @@ Lo desplegamos con `kubectl` con este comando
 
     $ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/134aac9de8925b588e23f7866ee1322f/raw/8818106443755dc25389953ffb428d4005b294ce/sg-deployment.yml
     
-### Despliegue los servicios
+### Despliegue de servicios
 
 [source, yaml]
 ----
@@ -1471,32 +1477,57 @@ El proveedor cloud nos dará una IP y el resultado será similar al de la figura
 
 image::images/SGApp.png[]
 
-## Google Kubernetes Engine (Sin finalizar)
+## Google Kubernetes Engine
 
-Al principio aparece 
+Google Kubernetes Engine es un servicio gestionado de Kubernetes ofrecido por Google. Ofrece autoescalado horizontal y vertical de pods y nodos.
+
+Un cluster GKE consiste en un grupo de instancias de Google Compute Engine, aunque realmente se pueden tener varios grupos de nodos (zonas diferentes, capacidades diferentes, ...).
+
+Todo lo expuesto anteriormente en este tutorial es perfectamente aplicable a clusters GKE, ya que se ha trabajado con Kubernetes. Lo que veremos a continuación es cómo crear un cluster GKE y cómo configurar `kubectl` para conectarlo al cluster creado en GKE.
+
+### Creación de un cluster Kubernetes en GKE
+
+Las operaciones con GKE se encuentran en el Menú de navegación en `Compute | Kubernetes Engine`. Desde ahí podremos gestionar clusters, Deployments, Services, _volume claims_, ConfigMaps y Secrets.
+
+Para crear un cluster, en `Kubernetes Engine | Clusters` aparecerá un cuadro indicando la posibilidad de crear un nuevo cluster.
 
 image::images/GKE-SinCluster.png[]
 
-Seleccionamos `Crear cluster`
-
-Aparece Asistente para creación de cluster. Se recomienda usar la opción `Mi primer cluster` que crea un cluster sencillo para probar. 
+Seleccionamos `Crear cluster`. Aparece el Asistente para la creación de clusters. Para este tutorial se recomienda usar la opción `Mi primer cluster` que aparece en la derecha. Esta crea un cluster sencillo para probar. 
 
 image::images/GKE-FormularioInicial.png[]
 
+Aparecerá un cuadro informando de los pasos que se van a realizar en el proceso de creación del cluster. Se trata de un cluster de recursos reducidos formado por 3 nodos de 1vCPU y 1,7 GB de RAM cada uno. Las funcionalidades también son reducidas (p.e. tiene deshabilitado el autoescalado de nodos de forma predeterminada). 
+
 image::images/GKE-CreaTuPrimerCluster.png[]
 
-Está formado por 3 nodos de 1vCPU y 1,7 GB de RAM cada uno.
+Tras pulsar el botón de creación del cluster y tras un periodo de tiempo el cluster estará creado.
 
 image::images/GKE-ClusterCreado.png[]
 
+### Interacción con cluster GKE desde `kubectl` local.
 
-Creamos una cuenta de servicio. La denominamos k8s`. Dejamos el resto de valores con los valores predeterminados.
+Pese a que Google Cloud Shell cuente con `kubectl` queremos operar con el cluster creado desde nuestro equipo ya que en él será donde tengamos los archivos de manifiesto que usaremos para configurar los despliegues en el cluster.
 
-Le damos al botón `Conectar` para obtener las credenciales.
+.Descarga de `gcloud`
+****
+Descargar `gcloud` si no se tiene instalado. Seguir esta guía (https://cloud.google.com/sdk/docs/install). Tras la instalación nos pedirá que conectemos con nuestro usuario y que seleccionemos el proyecto. Así, tendremos disponible el SDK de Google Cloud y quedaremos conectado a nuestro proyecto en Google Cloud.
+
+[NOTE]
+====
+Si ya se cuenta con `gcloud` instalado y no se tiene configurado contra el proyecto de Google Cloud ejecutar `gcloud init`. Si no existe una configuración creada nos pedirá que conectemos con nuestro usuario y que seleccionemos el proyecto.
+====
+****
+
+Para obtener las creadenciales de acceso al cluster, en la lista de clusters (`Kubernetes Engine | Clusters`) le damos al botón `Conectar` de nuestro cluster para obtener las credenciales. Nos aparecerá un cuadro de diálogo para obtener las credenciales a incluir en el archivo de configuración de `kubectl` (`~/.kube/config`). la figura muestra el comando que hay que ejecutar para configurar `kubectl` contra nuestro cluster. Copiar ese comando y ejecutarlo en nuestra terminal. No lo ejecutaremos en Cloud Shell porque lo que queremos configurar es nuestro `kubectl`, no el de Cloud Shell.
 
 image::images/GKE-ConectarCluster.png[]
 
-Le damos a `Ejecutar en Cloud Shell`. Nos saldrá un aviso pidiendo autorización. Aceptaremos la autorización. Aparecerá el comando para ejecutarlo. 
+La obtención de las credenciales sigue este patrón
+
+    gcloud container clusters get-credentials <cluster-name> --zone=<compute-zone>
+    
+A continuación se muestra un ejemplo con la respuesta que devuelve.
 
 [source, bash]
 ----
@@ -1505,21 +1536,20 @@ Fetching cluster endpoint and auth data.
 kubeconfig entry generated for my-first-cluster-1
 ----
 
-Descargar gcloud si no se tiene instalado. Seguir esta guía (https://cloud.google.com/sdk/docs/install). Tras la instalación nos pedirá que conectemos con nuestro usuario y que seleccionemos el proyecto. Así, `gcloud` quedará conectado a nuestro proyecto en Google Cloud.
+En ese momento, `kubectl` ha quedado configurado y conectado al cluster GKE.
 
-Obtener las credenciales de acceso al cluster.
-
-gcloud container clusters get-credentials CLUSTER_NAME \
-    --zone=COMPUTE_ZONE
-    
-Despliegue de prueba: Se verán los pods.
+Para comprobarlo, haremos un despliegue de prueba:
 
 [source, bash]
 ----
 $ kubectl apply -f https://gist.githubusercontent.com/ualmtorres/a5685c96a7119908a8d0975eff4907f7/raw/2e7d8d3a6ef64e7937e345b933223dceb2ff69d3/k8s-nginx.yml
 ----
 
+En el menú `Cargas de trabajo` podremos ver el despliegue realizado.
+
 image::images/GKE-nginx.png[]
+
+Para ver los pods con `kubectl` ejecutaríamos
 
 [source, bash]
 ----
@@ -1529,7 +1559,9 @@ nginx-7bf5f699-k6tsr   1/1     Running   0          6m49s
 nginx-7bf5f699-vfkz8   1/1     Running   0          6m49s
 ----
 
-Con port-forward podremos ver el Nginx.
+Para ver alguno de los Nginx funcionando haríamos un _port forward_ 
+
+    $ kubectl port-forward nginx-7bf5f699-k6tsr 80:80
 
 ### Parada del cluster
 
@@ -1540,6 +1572,40 @@ Selecciona, editar, ir a la zona de Grupos de nodos, seleccionar y poner el núm
 Selecciona, editar, ir a la zona de Grupos de nodos, seleccionar y poner el número de nodos al deseado.
 
 Seguir los mismos pasos y activar el autoescalado indicando mínimo y máximo de nodos
+
+## Contextos
+
+El archivo `kubeconfig` organiza información de diferentes clusters. Básicamente incluye datos de conexión de clusters y usuarios, y les asigna una alias. Usaremos esos alias para que `kubectl` quede conectado a un cluster o a otro.
+
+Obtener los contextos
+
+[source, bash]
+----
+$ kubectl config get-contexts
+CURRENT   NAME            CLUSTER         AUTHINFO     NAMESPACE
+*         minikube        minikube        minikube     default
+          produccion-ci   produccion-ci   user-mzmh8   mtorres
+...
+----
+
+Usar un contexto
+
+[source, bash]
+----
+$ kubectl config use-context produccion-ci
+
+Switched to context "produccion-ci".
+----
+
+Si ahora consultamos los contextos, veremos que el contexto activo es `produccion-ci`. Por tanto, todas las operaciones que hagamos con `kubectl` a partir de ahora se dirigirán contra ese contexto (cluster-usuario-namespace).
+
+[source, bash]
+----
+$ kubectl config get-contexts
+CURRENT   NAME            CLUSTER         AUTHINFO     NAMESPACE
+          minikube        minikube        minikube     default
+*         produccion-ci   produccion-ci   user-mzmh8   mtorres
+----
 
 ## HPA. Horizontal Pod Autoscaler
 
