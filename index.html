@@ -496,13 +496,13 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <h2 id="trueresumen"><a class="anchor" href="#trueresumen"></a>Resumen</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Kubernetes es un sistema de código abierto para la automatización de despliegues. escalado y administración de aplicaciones basadas en contenedores. En este tutorial se realiza una introducción a su objetos principales y se ilustra su funcionamiento con Minikube y Google Kubernetes Engine.</p>
+<p>Kubernetes es un sistema de código abierto para la automatización de despliegues. escalado y administración de aplicaciones basadas en contenedores. En este tutorial se realiza una introducción a su objetos principales y se ilustra su funcionamiento con Minikube y Google Kubernetes Engine. También se introduce el uso de volúmenes y el autoescalado horizontal.</p>
 </div>
 <div class="ulist">
 <div class="title">Objetivos</div>
 <ul>
 <li>
-<p>Prensentar los componentes de la arquitectura de Kubernetes.</p>
+<p>Presentar los componentes de la arquitectura de Kubernetes.</p>
 </li>
 <li>
 <p>Usar los objetos básicos de Kubernetes (<code>Namespace</code>, <code>Pod</code>, <code>Deployment</code>, <code>Service</code>, <code>ConfigMap</code>, <code>Secret</code> y <code>Volume</code>).</p>
@@ -3068,7 +3068,7 @@ CURRENT   NAME            CLUSTER         AUTHINFO     NAMESPACE
 <p>HPA consulta cada 15s las métricas de uso (CPU, RAM, &#8230;&#8203;) de cada pod</p>
 </li>
 <li>
-<p>Ante stress HPA escala hacia arriba</p>
+<p>Ante stress, HPA escala hacia arriba</p>
 </li>
 <li>
 <p>HPA escala hacia abajo tras un periodo de 5 minutos sin stress</p>
@@ -3084,7 +3084,7 @@ CURRENT   NAME            CLUSTER         AUTHINFO     NAMESPACE
 <p>A continuación se muestran la redefinición de los Deployment de los ejemplos de la API y de la aplicación del ejemplo del tenis especificando una petición de CPU y memoria para cada pod.</p>
 </div>
 <div class="paragraph">
-<p>Archivo <code>tennis-api-deployemnt-hpa.yml</code> indicando límites de CPU y memoria:</p>
+<p>Archivo <code>tennis-api-deployment-hpa.yml</code> indicando límites de CPU y memoria:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -3194,7 +3194,7 @@ spec:
 </table>
 </div>
 <div class="paragraph">
-<p>Archivo <code>tennis-app-deployemnt-hpa.yml</code> indicando límites de CPU y memoria:</p>
+<p>Archivo <code>tennis-app-deployment-hpa.yml</code> indicando límites de CPU y memoria:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -3292,6 +3292,7 @@ spec:
 kind: HorizontalPodAutoscaler
 metadata:
  name: tennis-api
+ namespace: demo
 spec:
  scaleTargetRef:
    apiVersion: apps/v1beta1
@@ -3305,6 +3306,7 @@ apiVersion: autoscaling/v1
 kind: HorizontalPodAutoscaler
 metadata:
  name: tennis-app
+ namespace: demo
 spec:
  scaleTargetRef:
    apiVersion: apps/v1beta1
@@ -3359,16 +3361,16 @@ $ kubectl port-forward -n weave "$(kubectl get -n weave pod --selector=weave-sco
 <div class="ulist">
 <ul>
 <li>
-<p>100.000 peticiones totales</p>
+<p>10.000 peticiones totales</p>
 </li>
 <li>
-<p>100 peticiones simultáneas</p>
+<p>10 peticiones simultáneas</p>
 </li>
 </ul>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ ab -n 100000 -c 100 http://&lt;ip-aplicacion&gt;/</code></pre>
+<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ ab -n 10000 -c 10 http://&lt;ip-aplicacion&gt;/</code></pre>
 </div>
 </div>
 <div class="sidebarblock">
@@ -3398,25 +3400,97 @@ $ kubectl port-forward -n weave "$(kubectl get -n weave pod --selector=weave-sco
 </tr>
 </table>
 </div>
+<div class="admonitionblock important">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-important" title="Important"></i>
+</td>
+<td class="content">
 <div class="paragraph">
-<p>La figura siguiente ilustra varias capturas de cómo ha ido adaptándose el número de pods a la demanda a lo largo de la prueba de carga. Hemos usado colores naranja, rojo y azul para ilustrar el estado de stress y la respuesta elástica con el número de pods en distintos estados que hemos ido capturando durante la prueba de carga.</p>
+<p>El ejemplo de cluster que hemos definido en este tutorial es bastante pequeño. Inicialmente, sólo cuenta con un 1 nodo de 1 vCPU y 1.7 GB de RAM. Esto puede llevar a la saturación del cluster ante la prueba de stress. Se recomienda aumentar el número de nodos del cluster para que los pods caigan en nodos diferentes y así poder hacer un auténtico escalado horizontal.</p>
+</div>
+<div class="paragraph">
+<p>Además, si esto se combina con el autoescalado del número de nodos del cluster podemos ver en acción una situación de adaptación totalmente elástica del cluster a los recursos demandados en cuanto a pods y nodos.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Las figuras siguientes ilustran varias capturas de cómo ha ido adaptándose el número de pods a la demanda a lo largo de la prueba de carga. Se han usado colores azul, naranja y rojo para ilustrar el estado de stress y la respuesta elástica con el número de pods en distintos estados que se han ido capturando durante la prueba de carga.</p>
 </div>
 <div class="imageblock">
 <div class="content">
-<img src="WeaveScopeEvolucion.png" alt="WeaveScopeEvolucion.png">
+<img src="images/weave-scope-blue.png" alt="weave scope blue.png">
+</div>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="images/weave-scope-orange.png" alt="weave scope orange.png">
+</div>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="images/weave-scope-red.png" alt="weave scope red.png">
 </div>
 </div>
 <div class="paragraph">
-<p>La figura siguiente ilustra el estado del objeto HPA con el comando</p>
+<p>También se muestan algunos de los estados por lo que ha ido pasando el objeto HPA con el comando <code>kubectl get horizontalpodautoscalers.autoscaling</code></p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ kubectl get horizontalpodautoscalers.autoscaling -n demo --watch</code></pre>
+<pre class="highlightjs highlight"><code class="language-bash" data-lang="bash">$ kubectl get horizontalpodautoscalers.autoscaling -n demo --watch
+
+
+NAME         REFERENCE               TARGETS   MINPODS   MAXPODS   REPLICAS   AGE
+tennis-api   Deployment/tennis-api   1%/15%    1         10        2          3m26s <i class="conum" data-value="1"></i><b>(1)</b>
+tennis-app   Deployment/tennis-app   1%/15%    1         10        2          3m26s
+tennis-api   Deployment/tennis-api   1%/15%    1         10        1          5m42s <i class="conum" data-value="2"></i><b>(2)</b>
+tennis-app   Deployment/tennis-app   1%/15%    1         10        1          5m42s
+tennis-app   Deployment/tennis-app   4%/15%    1         10        1          8m44s
+tennis-api   Deployment/tennis-api   76%/15%   1         10        4          9m48s <i class="conum" data-value="3"></i><b>(3)</b>
+tennis-api   Deployment/tennis-api   1%/15%    1         10        8          11m
+tennis-api   Deployment/tennis-api   27%/15%   1         10        10         14m <i class="conum" data-value="4"></i><b>(4)</b>
+tennis-api   Deployment/tennis-api   1%/15%    1         10        10         32m
+tennis-api   Deployment/tennis-api   1%/15%    1         10        8          32m <i class="conum" data-value="5"></i><b>(5)</b>
+tennis-api   Deployment/tennis-api   1%/15%    1         10        8          33m
+tennis-api   Deployment/tennis-api   1%/15%    1         10        7          33m
+tennis-api   Deployment/tennis-api   1%/15%    1         10        4          34m
+tennis-api   Deployment/tennis-api   1%/15%    1         10        1          34m <i class="conum" data-value="6"></i><b>(6)</b></code></pre>
 </div>
+</div>
+<div class="colist arabic">
+<table>
+<tr>
+<td><i class="conum" data-value="1"></i><b>1</b></td>
+<td>Estado inicial con dos réplicas</td>
+</tr>
+<tr>
+<td><i class="conum" data-value="2"></i><b>2</b></td>
+<td>Ante actividad baja, el número de réplicas desciende a 1</td>
+</tr>
+<tr>
+<td><i class="conum" data-value="3"></i><b>3</b></td>
+<td>Ante stress de la CPU, el número de réplicas aumenta</td>
+</tr>
+<tr>
+<td><i class="conum" data-value="4"></i><b>4</b></td>
+<td>Límite de réplicas alcanzando el límite</td>
+</tr>
+<tr>
+<td><i class="conum" data-value="5"></i><b>5</b></td>
+<td>A medida que baja la carga también baja el número de réplicas</td>
+</tr>
+<tr>
+<td><i class="conum" data-value="6"></i><b>6</b></td>
+<td>Ante un estado tranquilo, el número de réplicas desciende al mínimo</td>
+</tr>
+</table>
 </div>
 <div class="imageblock">
 <div class="content">
-<img src="HPAEvolucion.png" alt="HPAEvolucion.png">
+<img src="images/weave-scope-cold.png" alt="weave scope cold.png">
 </div>
 </div>
 </div>
@@ -3425,7 +3499,7 @@ $ kubectl port-forward -n weave "$(kubectl get -n weave pod --selector=weave-sco
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2020-12-04 14:48:32 CET
+Last updated 2020-12-09 12:00:54 CET
 </div>
 </div>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/8.9.1/styles/github.min.css">

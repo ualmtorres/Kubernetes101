@@ -28,13 +28,13 @@ image::images/di.png[]
 ////
 COLOCA A CONTINUACION EL RESUMEN
 ////
-Kubernetes es un sistema de código abierto para la automatización de despliegues. escalado y administración de aplicaciones basadas en contenedores. En este tutorial se realiza una introducción a su objetos principales y se ilustra su funcionamiento con Minikube y Google Kubernetes Engine.
+Kubernetes es un sistema de código abierto para la automatización de despliegues. escalado y administración de aplicaciones basadas en contenedores. En este tutorial se realiza una introducción a su objetos principales y se ilustra su funcionamiento con Minikube y Google Kubernetes Engine. También se introduce el uso de volúmenes y el autoescalado horizontal.
 
 ////
 COLOCA A CONTINUACION LOS OBJETIVOS
 ////
 .Objetivos
-* Prensentar los componentes de la arquitectura de Kubernetes.
+* Presentar los componentes de la arquitectura de Kubernetes.
 * Usar los objetos básicos de Kubernetes (`Namespace`, `Pod`, `Deployment`, `Service`, `ConfigMap`, `Secret` y `Volume`).
 * Utilizar `kubectl` y desplegar configuraciones con archivos YAML.
 * Usar el componente de autoescalado horizontal.
@@ -1616,14 +1616,14 @@ De forma escueta podemos resumir de esta forma su funcionamiento:
 * En su definición se fija un mínimo y máximo de réplicas de un deployment
 * En su definición se definen las condiciones de stress (p.e. porcentaje de uso de la CPU)
 * HPA consulta cada 15s las métricas de uso (CPU, RAM, ...) de cada pod
-* Ante stress HPA escala hacia arriba
+* Ante stress, HPA escala hacia arriba
 * HPA escala hacia abajo tras un periodo de 5 minutos sin stress
 
 image::images/HPA.png[]
 
 A continuación se muestran la redefinición de los Deployment de los ejemplos de la API y de la aplicación del ejemplo del tenis especificando una petición de CPU y memoria para cada pod.
 
-Archivo `tennis-api-deployemnt-hpa.yml` indicando límites de CPU y memoria:
+Archivo `tennis-api-deployment-hpa.yml` indicando límites de CPU y memoria:
 [source, yaml]
 ----
 apiVersion: apps/v1
@@ -1693,7 +1693,7 @@ Cuando no se especifica límite de CPU para un contenedor puede pasar una de est
 También es posible limitar los recursos de RAM asignados a un contenedor. Consultar la https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/[documentación oficial sobre la asignación de recursos de RAM a un contenedor] para más información.
 ====
 
-Archivo `tennis-app-deployemnt-hpa.yml` indicando límites de CPU y memoria:
+Archivo `tennis-app-deployment-hpa.yml` indicando límites de CPU y memoria:
 [source, yaml]
 ----
 apiVersion: apps/v1
@@ -1786,6 +1786,7 @@ apiVersion: autoscaling/v1
 kind: HorizontalPodAutoscaler
 metadata:
  name: tennis-api
+ namespace: demo
 spec:
  scaleTargetRef:
    apiVersion: apps/v1beta1
@@ -1799,6 +1800,7 @@ apiVersion: autoscaling/v1
 kind: HorizontalPodAutoscaler
 metadata:
  name: tennis-app
+ namespace: demo
 spec:
  scaleTargetRef:
    apiVersion: apps/v1beta1
@@ -1844,13 +1846,12 @@ $ kubectl port-forward -n weave "$(kubectl get -n weave pod --selector=weave-sco
 
 https://httpd.apache.org/docs/2.4/programs/ab.html[Apache Benchmark] es una herramienta útil para realizar pruebas de carga. A continuación se muestra cómo hacer una prueba de carga con
 
-* 100.000 peticiones totales
-* 100 peticiones simultáneas
-
+* 10.000 peticiones totales
+* 10 peticiones simultáneas
 
 [source, bash]
 ----
-$ ab -n 100000 -c 100 http://<ip-aplicacion>/
+$ ab -n 10000 -c 10 http://<ip-aplicacion>/
 ----
 
 .Instalación de Apache Benchmark
@@ -1865,16 +1866,48 @@ Instala Apache Benchmark en una máquina virtual Ubuntu o en la propia Google Cl
 Este ejemplo ha sido realizado en un cluster GKE. El servicio de la aplicación es de tipo `LoadBalancer` para poder acceder a la aplicación desde Internet.
 ====
 
-La figura siguiente ilustra varias capturas de cómo ha ido adaptándose el número de pods a la demanda a lo largo de la prueba de carga. Hemos usado colores naranja, rojo y azul para ilustrar el estado de stress y la respuesta elástica con el número de pods en distintos estados que hemos ido capturando durante la prueba de carga.
+[IMPORTANT]
+====
+El ejemplo de cluster que hemos definido en este tutorial es bastante pequeño. Inicialmente, sólo cuenta con un 1 nodo de 1 vCPU y 1.7 GB de RAM. Esto puede llevar a la saturación del cluster ante la prueba de stress. Se recomienda aumentar el número de nodos del cluster para que los pods caigan en nodos diferentes y así poder hacer un auténtico escalado horizontal.
 
-image::WeaveScopeEvolucion.png[]
+Además, si esto se combina con el autoescalado del número de nodos del cluster podemos ver en acción una situación de adaptación totalmente elástica del cluster a los recursos demandados en cuanto a pods y nodos.
+====
 
-La figura siguiente ilustra el estado del objeto HPA con el comando 
+Las figuras siguientes ilustran varias capturas de cómo ha ido adaptándose el número de pods a la demanda a lo largo de la prueba de carga. Se han usado colores azul, naranja y rojo para ilustrar el estado de stress y la respuesta elástica con el número de pods en distintos estados que se han ido capturando durante la prueba de carga.
+
+image::images/weave-scope-blue.png[]
+image::images/weave-scope-orange.png[]
+image::images/weave-scope-red.png[]
+
+También se muestan algunos de los estados por lo que ha ido pasando el objeto HPA con el comando `kubectl get horizontalpodautoscalers.autoscaling`
 
 [source, bash]
 ----
 $ kubectl get horizontalpodautoscalers.autoscaling -n demo --watch
+
+
+NAME         REFERENCE               TARGETS   MINPODS   MAXPODS   REPLICAS   AGE
+tennis-api   Deployment/tennis-api   1%/15%    1         10        2          3m26s <1>
+tennis-app   Deployment/tennis-app   1%/15%    1         10        2          3m26s
+tennis-api   Deployment/tennis-api   1%/15%    1         10        1          5m42s <2>
+tennis-app   Deployment/tennis-app   1%/15%    1         10        1          5m42s
+tennis-app   Deployment/tennis-app   4%/15%    1         10        1          8m44s
+tennis-api   Deployment/tennis-api   76%/15%   1         10        4          9m48s <3>
+tennis-api   Deployment/tennis-api   1%/15%    1         10        8          11m
+tennis-api   Deployment/tennis-api   27%/15%   1         10        10         14m <4>
+tennis-api   Deployment/tennis-api   1%/15%    1         10        10         32m
+tennis-api   Deployment/tennis-api   1%/15%    1         10        8          32m <5>
+tennis-api   Deployment/tennis-api   1%/15%    1         10        8          33m
+tennis-api   Deployment/tennis-api   1%/15%    1         10        7          33m
+tennis-api   Deployment/tennis-api   1%/15%    1         10        4          34m
+tennis-api   Deployment/tennis-api   1%/15%    1         10        1          34m <6>
 ----
+<1> Estado inicial con dos réplicas
+<2> Ante actividad baja, el número de réplicas desciende a 1
+<3> Ante stress de la CPU, el número de réplicas aumenta
+<4> Límite de réplicas alcanzando el límite
+<5> A medida que baja la carga también baja el número de réplicas
+<6> Ante un estado tranquilo, el número de réplicas desciende al mínimo
 
+image::images/weave-scope-cold.png[]
 
-image::HPAEvolucion.png[]
