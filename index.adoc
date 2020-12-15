@@ -1573,6 +1573,249 @@ Selecciona, editar, ir a la zona de Grupos de nodos, seleccionar y poner el núm
 
 Seguir los mismos pasos y activar el autoescalado indicando mínimo y máximo de nodos
 
+### Volúmenes NFS con Filestore
+
+Filestore es una solución de Google Cloud para almacenamiento en red gestionado que puede ser usado en instancias de Google Compute Engine y Kubernetes Engine. Filestore tiene compatibilidad con clientes NFS por lo que los usaremos para crear volúmenes https://debian-handbook.info/browse/es-ES/stable/sect.nfs-file-server.html[NFS]. Cada instancia Filestore tendrá una dirección IP (normalmente en una red de Google Cloud) y su almacenamiento mínimo es de 1 TB.
+
+En Filestore definiremos un _share_. Se trata de un directorio de la instancia Filestore en el que se almacenarán los archivos compartidos. Este directorio es el que posteriormente se montará en las instancias de GCE o en los pods de GKE. NFS permite acceso compartido con escritura múltiple, lo que lo hace una solución ideal de almacenamiento en despliegues Kubernetes para gestores de contenidos, análisis de datos, procesamiento compartido y demás escenarios en los que los pods tengan que leer y escribir en un lugar común.
+
+Las instancias Filestore creadas son externas al cluster Kubernetes y son persistentes, de forma que su contenido se mantiene después de la eliminación de los pods que lo tengan montado y de los clusters que lo usen.
+
+[IMPORTANT]
+====
+La tarifa mínima (diciembre de 2020) de Filestore está en 0.2 €/GB mensuales para HDD y 0.3 €/GB para SSD, lo que supone una facturación que supera los 200 € mensuales en el caso de HDD y los 300 € en el caso de los SDD. Se recomienda no usar este tipo de recursos de forma innecesaria y eliminarlos cuando no sean necesarios en los laboratorios de la asignatura debido a su elevado coste.
+====
+
+.Google Cloud Volume Services
+****
+Otro servicio de almacenamiento compartido y gestionado alternativo a Filestore es Google Cloud Volume Services. Es ofrecido por NetApp y al igual que Filestore el espacio mínimo es de 1 TB. La tarifa por uso mensual va desde 0.10 USD/GB del _standard storage_ hasta los 0.30 USD/GB del _extreme storage_.
+
+image::images/CloudVolumeServices.png[]
+
+Más información en https://cloud.google.com/solutions/partners/netapp-cloud-volumes/creating-nfs-volumes[Creating and managing NFS volumes] de la documentación de Google Cloud
+****
+
+#### Creación de una instancia en Filestore
+
+. En el menú de navegación seleccionar `Almacenamiento | Filestore | Instancias`. Se mostrarán las instancias disponibles. Pulsar el botón `Crear instancia` para abrir el asistente de creación de instancias de Filestore.
+. Asignar un nombre (p.e. `nfs-server`).
+. En la región y en la zona elegiremos los mismos valores que tengamos en el cluster de Kubernetes para mejorar el rendimiento y reducir el coste de comunicaciones en el intercambio de datos.
+. En `Configura tu sistema de archivos compartidos` introducir el nombre del _share_ a crear. Junto con la IP de la instancia Filestore, el nombre del _share_ será el nombre que usemos para acceder al volumen NFS que se va a crear. Introduciremos el valor (p.e. `nfsVolume`).
+. Mantener el resto de opciones a los valores predeterminados.
+. Pulsar el botón `Crear`. 
+
+Unos minutos más tarde estará creada la instancia Filestore mostrando el ID de la instancia, el nombre del share, dirección IP, capacidad y otras características, como ilustra la figura siguiente.
+
+image::images/Filestore-CrearInstancia.png[]
+
+#### Volúmenes persistentes y solicitudes de volumen persistente
+
+Un **volumen persistente** es un espacio de almacenamiento que ha sido creado por un administrador (p.e. creando una instancia de Filestore) o bien ha sido creado de forma dinámica usando https://kubernetes.io/docs/concepts/storage/storage-classes/[Clases de almacenamiento]. `PersistentVolume` es un objeto Kubernetes que captura los detalles de almacenamiento (p.e. en el caso de un servidor NFS tendríamos su tamaño, modo de acceso, servidor NFS, nombre del _share_ y demá).
+
+A continuación se muestra el manifiesto para crear un `PersistentVolume` en el namespace `default` para el _share_ de 1 TB (`nfsVolume`) creado anteriormente en Filestore. Este volumen persistente abstrae al _share_ creado en Filestore.
+
+.Archivo `nfs-persistentvolume.yml`
+[source, yaml]
+----
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfs-pv <1>
+spec:
+  capacity:
+    storage: 1T <2>
+  accessModes:
+    - ReadWriteMany <3>
+  persistentVolumeReclaimPolicy: Recycle
+  nfs: <4>
+    path: /nfsVolume <5>
+    server: 10.22.135.130 <6>
+----
+<1> Nombre del volumen persistente
+<2> Capacidad total del almacenamiento creado
+<3> Modo de acceso
+<4> Tipo del volumen persistente
+<5> Nombre creado para el _share_
+<6> Servidor NFS creado con Filestore
+
+Desplegaremos el volumen persistente con 
+
+    kubectl apply -f nfs-persistentvolume.yml
+
+Una **solicitud de volumen persistente** es una solicitud de un espacio de almacenamiento dentro de un volumen persistente. Se corresponde con el objeto `PersistentVolumenClaim` de Kubernetes. Por tanto, podemos ver a `PersistentVolume` como un gran espacio de almacenamiento disponible para que nuestras aplicaciones le hagan solicitudes de cuotas más pequeñas (`PersistentVolumeClaim`).
+
+A continuación se muestra el manifiesto para crear un `PersistentVolumeClaim` en el namespace `default` de 10 GB a partir del volumen persistente creado anteriormente. Este espacio obtenido será el que maneje el despliegue que crearemos más adelante.
+
+.Archivo https://gist.githubusercontent.com/ualmtorres/4adbc23ae9237197be32d622bad8876c/raw/3403e9da298c971d739575e0aab8f221e99158e3/nfs-pvc.yaml[`nfs-persistentvolumeclaim.yml`]
+[source, yaml]
+----
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nfs-pvc <1>
+spec:
+  accessModes:
+    - ReadWriteMany <2>
+  resources:
+    requests:
+      storage: 10Gi <3>
+  volumeName: nfs-pv <4>
+  storageClassName: ""
+----
+<1> Nombre del `PersistentVolumeClaim`
+<2> Modo de acceso
+<3> Espacio solicitado
+<4> Nombre del `PersistentVolume` al que se hace la solicitud
+
+Desplegaremos la solicitud de volumen persistente con 
+
+    kubectl apply -f nfs-persistentvolumeclaim.yml
+
+El volumen aparecerá creado en la zona `Almacenamiento` de `Kubernetes Engine` en la consola de Google Cloud indicando que está conectado (_Bound_).
+
+image::images/PVC.png[]
+
+#### Despliegue conectado al volumen NFS
+
+A partir del `PersistentVolumeClaim` creado vamos a desplegar dos pods que estén conectados al volumen y veremos como la escritura por parte de uno ellos en el volumen es vista por el otro. Se trata de un despliegue de un servidor Apache y de un servidor Nginx. Inicialmente no existirá página de inicio por lo que ninguno de ellos mostrará nada. Después, uno de ellos creará la página de inicio en el volumen compartido y se comproborá que los dos puedan mostrarla porque tienen acceso al volumen compartido.
+
+A continuación se muestra el manifiesto para crear un despliegue de Apache en el namespace `default` que monta el `PersistentVolumeClaim` en la carpeta de publicación de Apache.
+
+.Archivo https://gist.githubusercontent.com/ualmtorres/5395c584fac772a28ca201056c0bc081/raw/50f3fcc9264be640b207934d7625ef9fb9fe87cd/nfs-apache-pvc.yaml[`nfs-apache-pvc.yml`]
+
+[source, yaml]
+----
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apache-nfs
+spec:
+  selector:
+    matchLabels:
+     app: apache
+  template:
+    metadata:
+      labels:
+        app: apache
+    spec:
+      containers:
+      - name: apache
+        image: httpd
+        volumeMounts:
+          - mountPath: /usr/local/apache2/htdocs <1>
+            name: nfs-vol <2>
+        ports:
+        - containerPort: 80
+      volumes:
+        - name: nfs-vol <3>
+          persistentVolumeClaim:
+            claimName: nfs-pvc <4>
+----
+<1> Punto de montaje del `PersistentVolumeClaim`
+<2> Referencia al `PersistentVolumeClaim` de este despliegue
+<3> Nombre que se le da en este despliegue al `PersistentVolumeClaim`
+<4> Referencia al objeto `PersistentVolumeClaim` creado de 10 GB
+
+Desplegaremos el manifiesto con 
+
+    kubectl apply -f nfs-apache-pvc.yml
+
+A continuación se muestra el manifiesto para crear un despliegue de Nginx en el namespace `default` que monta el `PersistentVolumeClaim` en la carpeta de publicación de Nginx.
+
+.Archivo https://gist.githubusercontent.com/ualmtorres/9803a507cdfd31c0540e8314118aac3e/raw/a0b0f7fe32f0ce0e5360e1f025698ea28ad66cd2/nfs-nginx-pvc.yaml[`nfs-nginx-pvc.yml`]
+[source, yaml]
+----
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: www-vol
+spec:
+  selector:
+    matchLabels:
+     app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        volumeMounts:
+          - mountPath: /usr/share/nginx/html <1>
+            name: nfs-vol <2>
+        ports:
+        - containerPort: 80
+      volumes:
+        - name: nfs-vol <3>
+          persistentVolumeClaim:
+            claimName: nfs-pvc <4>
+----
+<1> Punto de montaje del `PersistentVolumeClaim`
+<2> Referencia al `PersistentVolumeClaim` de este despliegue
+<3> Nombre que se le da en este despliegue al `PersistentVolumeClaim`
+<4> Referencia al objeto `PersistentVolumeClaim` creado de 10 GB
+
+A continuación podemos ver en ejecución los pods de los dos despliegues.
+
+[source, bash]
+----
+$ kubectl get pods
+NAME                          READY   STATUS    RESTARTS   AGE
+apache-nfs-7f97b85696-gcrhb   1/1     Running   0          3m15s
+nginx-nfs-7c579fcbf8-hz9fp    1/1     Running   0          2m4s
+----
+
+Vamos a hacer un _port-forward_ a cada pod para ilustrar que ambos no tienen nada aún en su carpeta de publicación.
+
+[source, bash]
+----
+$ kubectl port-forward apache-nfs-7f97b85696-gcrhb 82:80
+Forwarding from 127.0.0.1:82 -> 80
+Forwarding from [::1]:82 -> 80
+
+$ kubectl port-forward nginx-nfs-7c579fcbf8-hz9fp 83:80
+Forwarding from 127.0.0.1:83 -> 80
+Forwarding from [::1]:83 -> 80
+----
+
+Inicialmente ni Apache ni Nginx muestran nada porque el volumen que tienen montado en su carpeta de publicación está vacío.
+
+image::images/PVC-NoContent.png[]
+
+A continuación, el pod de Apache hará una escritura en el volumen NFS. Lo simularemos entrando en el pod de Apache e inicializando el archivo `index.html` con un contenido de prueba `<h1>Volumen NFS</h1>`
+
+[source, html]
+----
+$ kubectl exec -it apache-nfs-7f97b85696-gcrhb bash
+
+
+root@apache-nfs-7f97b85696-gcrhb:/usr/local/apache2# echo "<h1>Volumen NFS</h1>" > htdocs/index.html
+----
+
+Tras esto, al recargar la página de Apache y de Nginx ambos mostrarán los cambios realizados sobre el volumen NFS compartido.
+
+image::images/PVC-Content.png[]
+
+Se trata de un ejemplo burdo pero sencillo donde se ilustra que pods diferentes comparten un espacio común donde ambos pueden escribir. Se trata de ver sólo una muestra de almacenamiento compartido en Kubernetes. Pero esto es aplicable a un ejemplo tan sencillo como este o a otro más complejo de procesamiento colaborativo entre varios pods sobre un espacio compartido.
+
+.Liberación de recursos
+****
+El almacenamiento en Filestore es un recurso cloud costoso por lo que una vez realizada la prueba ilustrativa en el tutorial procederemos a eliminar los recursos desplegados.
+
+Primero eliminaremos los despliegues de los manifiestos (`Deployment`, `PersistentVolumeClaim` y `PersistentVolume`).
+
+[source, bash]
+----
+$ kubectl delete -f nfs-nginx-pvc.yaml
+$ kubectl delete -f nfs-apache-pvc.yaml
+$ kubectl delete -f nfs-persistentvolumeclaim.yaml
+$ kubectl delete -f nfs-persistentvolume.yaml
+----
+
+A continuación se eliminará la instancia `nfs-server` de Filestore.
+****
+
 ## Contextos
 
 El archivo `kubeconfig` organiza información de diferentes clusters. Básicamente incluye datos de conexión de clusters y usuarios, y les asigna una alias. Usaremos esos alias para que `kubectl` quede conectado a un cluster o a otro.
